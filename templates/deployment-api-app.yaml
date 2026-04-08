@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "beabee.fullname" . }}-api-app
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: api-app
+spec:
+  replicas: {{ .Values.apiApp.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "beabee.selectorLabels" (dict "component" "api-app") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "beabee.selectorLabels" (dict "component" "api-app") | nindent 8 }}
+    spec:
+      containers:
+        - name: api-app
+          image: beabee/beabee-api-app:{{ .Values.image.tag }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+          ports:
+            - containerPort: 3000
+          resources:
+            {{- toYaml .Values.apiApp.resources | nindent 12 }}

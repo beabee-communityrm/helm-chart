@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "beabee.fullname" . }}-router
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: router
+spec:
+  replicas: {{ .Values.router.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "beabee.selectorLabels" (dict "component" "router") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "beabee.selectorLabels" (dict "component" "router") | nindent 8 }}
+    spec:
+      containers:
+        - name: router
+          image: beabee/beabee-router:{{ .Values.image.tag }}
+          env:
+            - name: LEGACY_APP_COOKIE_DOMAIN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: BEABEE_COOKIE_DOMAIN
+            - name: TRUSTED_ORIGINS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: BEABEE_TRUSTEDORIGINS
+            - name: API_APP_HOST
+              value: {{ include "beabee.fullname" . }}-api-app
+            - name: LEGACY_APP_HOST
+              value: {{ include "beabee.fullname" . }}-legacy-app
+            - name: WEBHOOK_APP_HOST
+              value: {{ include "beabee.fullname" . }}-webhook-app
+            - name: FRONTEND_APP_HOST
+              value: {{ include "beabee.fullname" . }}-frontend
+          ports:
+            - containerPort: 80
+          resources:
+            {{- toYaml .Values.router.resources | nindent 12 }}

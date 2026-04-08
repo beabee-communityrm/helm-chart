@@ -1,0 +1,28 @@
+{{- if .Values.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "beabee.fullname" . }}-migration
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: migration
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "beabee.selectorLabels" (dict "component" "migration") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migration
+          image: beabee/beabee-api-app:{{ .Values.image.tag }}
+          command: ['npm', 'run', 'typeorm', 'migration:run']
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+{{- end }}

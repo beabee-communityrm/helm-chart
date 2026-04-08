@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "beabee.fullname" . }}-api-app
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: api-app
+spec:
+  selector:
+    {{- include "beabee.selectorLabels" (dict "component" "api-app") | nindent 4 }}
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "beabee.fullname" . }}-legacy-app
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: legacy-app
+spec:
+  selector:
+    {{- include "beabee.selectorLabels" (dict "component" "legacy-app") | nindent 4 }}
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "beabee.fullname" . }}-webhook-app
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: webhook-app
+spec:
+  selector:
+    {{- include "beabee.selectorLabels" (dict "component" "webhook-app") | nindent 4 }}
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "beabee.fullname" . }}-frontend
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: frontend
+spec:
+  selector:
+    {{- include "beabee.selectorLabels" (dict "component" "frontend") | nindent 4 }}
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "beabee.fullname" . }}-router
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: router
+spec:
+  selector:
+    {{- include "beabee.selectorLabels" (dict "component" "router") | nindent 4 }}
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+  type: {{ .Values.router.service.type }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "beabee.fullname" . }}-redis-mq
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: redis-mq
+spec:
+  selector:
+    {{- include "beabee.selectorLabels" (dict "component" "redis-mq") | nindent 4 }}
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP

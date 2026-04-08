@@ -1,0 +1,88 @@
+image:
+  tag: v0.33.8
+
+# External secret managed outside this chart (e.g. via SOPS)
+secretName: beabee-secrets
+
+apiApp:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "164Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+webhookApp:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "164Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+legacyApp:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "164Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+cronApp:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+frontend:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+router:
+  replicaCount: 1
+  service:
+    type: LoadBalancer
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+redis:
+  image: redis:8.2-alpine
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+migration:
+  enabled: false
+
+cnpg:
+  enabled: false
+  namespace: pg-beabee
+  clusterName: pg-beabee
+  databaseName: ""  # defaults to .Release.Name
+  owner: ""         # defaults to .Release.Name

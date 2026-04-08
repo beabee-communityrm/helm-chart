@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "beabee.fullname" . }}-webhook-app
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: webhook-app
+spec:
+  replicas: {{ .Values.webhookApp.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "beabee.selectorLabels" (dict "component" "webhook-app") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "beabee.selectorLabels" (dict "component" "webhook-app") | nindent 8 }}
+    spec:
+      containers:
+        - name: webhook-app
+          image: beabee/beabee-webhook-app:{{ .Values.image.tag }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+          ports:
+            - containerPort: 3000
+          resources:
+            {{- toYaml .Values.webhookApp.resources | nindent 12 }}

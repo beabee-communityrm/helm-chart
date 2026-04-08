@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "beabee.fullname" . }}-legacy-app
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: legacy-app
+spec:
+  replicas: {{ .Values.legacyApp.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "beabee.selectorLabels" (dict "component" "legacy-app") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "beabee.selectorLabels" (dict "component" "legacy-app") | nindent 8 }}
+    spec:
+      containers:
+        - name: legacy-app
+          image: beabee/beabee-legacy-app:{{ .Values.image.tag }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+          ports:
+            - containerPort: 3000
+          resources:
+            {{- toYaml .Values.legacyApp.resources | nindent 12 }}
