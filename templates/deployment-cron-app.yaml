@@ -19,7 +19,13 @@ spec:
         - name: cron-app
           image: beabee/beabee-cron-app:{{ .Values.image.tag }}
           envFrom:
+            - configMapRef:
+                name: {{ include "beabee.fullname" . }}-config
             - secretRef:
-                name: {{ .Values.secretName }}
+                name: {{ include "beabee.secretName" . }}
+          {{- with (include "beabee.secretRefEnv" .) }}
+          env:
+            {{- . | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.cronApp.resources | nindent 12 }}

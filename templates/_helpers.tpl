@@ -28,9 +28,30 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 
 {{/*
-Selector labels for a component. Call with dict "component" "xxx" "context" $
+Selector labels for a component. Call with dict "component" "xxx"
 */}}
 {{- define "beabee.selectorLabels" -}}
 app: beabee
 component: {{ .component }}
+{{- end }}
+
+{{/*
+Default secret name — falls back to the release name.
+*/}}
+{{- define "beabee.secretName" -}}
+{{- default (include "beabee.fullname" .) .Values.secretName }}
+{{- end }}
+
+{{/*
+Render secretRef overrides as env entries. Call from a container spec.
+Explicit env entries override envFrom, so these win over the default secret.
+*/}}
+{{- define "beabee.secretRefEnv" -}}
+{{- range $envVar, $ref := .Values.secretRefs }}
+- name: {{ $envVar }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $ref.name }}
+      key: {{ default $envVar $ref.key }}
+{{- end }}
 {{- end }}

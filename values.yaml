@@ -1,9 +1,52 @@
 image:
   tag: v0.33.8
 
-# External secret managed outside this chart (e.g. via SOPS)
-secretName: beabee-secrets
+# ---------------------------------------------------------------------------
+# External secret (managed outside this chart, e.g. via SOPS)
+# The chart never templates secret values — only references by name.
+# Defaults to "{{ .Release.Name }}" (i.e. the Helm release name).
+# ---------------------------------------------------------------------------
+secretName: ""
 
+# Override individual env vars to pull from a different secret.
+# Useful when splitting tenant vs shared secrets later.
+# Key = env var name, value = secret name to read it from.
+# These render as explicit env[].valueFrom.secretKeyRef and override envFrom.
+secretRefs: {}
+#  BEABEE_STRIPE_SECRETKEY:
+#    name: org-shared-secrets
+#  BEABEE_STRIPE_PUBLICKEY:
+#    name: org-shared-secrets
+#  BEABEE_DATABASE_URL:
+#    name: my-tenant-db-secret
+#    key: DATABASE_URL          # optional: defaults to the env var name
+
+# ---------------------------------------------------------------------------
+# Per-tenant config (rendered as a ConfigMap by this chart)
+# ---------------------------------------------------------------------------
+config:
+  BEABEE_AUDIENCE: "https://example.com"
+  BEABEE_COOKIE_DOMAIN: "example.com"
+  BEABEE_COOKIE_SECURE: "true"
+  BEABEE_DEV: "false"
+  BEABEE_DOMAIN: "example.com"
+  BEABEE_ENVIRONMENT: "production"
+  BEABEE_TRUSTEDORIGINS: "https://example.com"
+  BEABEE_EXPERIMENTAL_FEATURES: ""
+  BEABEE_CNR_MODE: ""
+  BEABEE_COUNTRYCODE: "de"
+  BEABEE_CURRENCYCODE: "EUR"
+  BEABEE_CURRENCYSYMBOL: "€"
+  BEABEE_EMAIL_PROVIDER: "smtp"
+  BEABEE_NEWSLETTER_PROVIDER: "none"
+  BEABEE_GOCARDLESS_SANDBOX: "true"
+  BEABEE_STRIPE_COUNTRY: "eu"
+  BEABEE_MINIO_ENDPOINT: "http://minio:9000"
+  BEABEE_MINIO_BUCKET: "uploads"
+
+# ---------------------------------------------------------------------------
+# Component settings
+# ---------------------------------------------------------------------------
 apiApp:
   replicaCount: 1
   resources:

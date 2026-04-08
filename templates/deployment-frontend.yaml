@@ -19,41 +19,43 @@ spec:
         - name: frontend
           image: beabee/beabee-frontend:{{ .Values.image.tag }}
           env:
+            # Per-tenant config
             - name: APP_BASE_URL
               valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secretName }}
+                configMapKeyRef:
+                  name: {{ include "beabee.fullname" . }}-config
                   key: BEABEE_AUDIENCE
             - name: API_BASE_URL
               value: /api/1.0
             - name: CNR_MODE
               valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secretName }}
+                configMapKeyRef:
+                  name: {{ include "beabee.fullname" . }}-config
                   key: BEABEE_CNR_MODE
                   optional: true
             - name: EXPERIMENTAL_FEATURES
               valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secretName }}
+                configMapKeyRef:
+                  name: {{ include "beabee.fullname" . }}-config
                   key: BEABEE_EXPERIMENTAL_FEATURES
                   optional: true
+            # Shared secrets
             - name: APPSIGNAL_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secretName }}
+                  name: {{ include "beabee.secretName" . }}
                   key: BEABEE_APPSIGNAL_KEY
                   optional: true
             - name: CAPTCHAFOX_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secretName }}
+                  name: {{ include "beabee.secretName" . }}
                   key: BEABEE_CAPTCHAFOX_KEY
                   optional: true
             - name: MAPTILER_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secretName }}
+                  name: {{ include "beabee.secretName" . }}
                   key: BEABEE_MAPTILER_KEY
                   optional: true
           ports:
