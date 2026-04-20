@@ -123,11 +123,6 @@ redis:
 migration:
   enabled: false
 
-pgBackup:
-  enabled: false
-  schedule: "0 2 * * *"
-  tagPrefix: "k8s"
-  resticSecretName: "restic-backup"  # reflected from correctiv-beabee-system namespace
 
 cnpg:
   enabled: false
