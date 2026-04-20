@@ -1,0 +1,100 @@
+{{- if .Values.pgBackup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pg-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: pg-backup
+spec:
+  schedule: {{ .Values.pgBackup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "beabee.labels" . | nindent 12 }}
+            component: pg-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pg-backup
+              image: alpine:3.21
+              env:
+                - name: BEABEE_DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "beabee.secretName" . }}
+                      key: BEABEE_DATABASE_URL
+                - name: RESTIC_REPOSITORY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.pgBackup.resticSecretName }}
+                      key: RESTIC_REPOSITORY
+                - name: RESTIC_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.pgBackup.resticSecretName }}
+                      key: RESTIC_PASSWORD
+                - name: BACKUP_TAG_PREFIX
+                  value: {{ .Values.pgBackup.tagPrefix | quote }}
+                - name: DUMP_DIR
+                  value: /tmp
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+
+                  apk add --no-cache restic postgresql16-client
+
+                  # Parse postgres://user:pass@host[:port]/db into PG env vars.
+                  _url="${BEABEE_DATABASE_URL#postgres://}"
+                  PGUSER="${_url%%:*}"
+                  _rest="${_url#*:}"
+                  PGPASSWORD="${_rest%%@*}"
+                  _rest="${_rest#*@}"
+                  _hostport="${_rest%%/*}"
+                  _db="${_rest#*/}"
+                  _db="${_db%%\?*}"
+                  if echo "$_hostport" | grep -q ':'; then
+                    PGHOST="${_hostport%%:*}"
+                    PGPORT="${_hostport##*:}"
+                  else
+                    PGHOST="$_hostport"
+                    PGPORT="5432"
+                  fi
+                  export PGUSER PGPASSWORD PGHOST PGPORT
+                  DB_FILTER_REGEX="^${_db}$"
+
+                  databases=$(psql -h "$PGHOST" -U "$PGUSER" -p "$PGPORT" -d postgres \
+                    -t -A -c "SELECT datname FROM pg_database WHERE datistemplate = false" |
+                    grep -E "$DB_FILTER_REGEX" || true)
+
+                  if [ -z "$databases" ]; then
+                    echo "No databases matched filter: $DB_FILTER_REGEX"
+                    exit 0
+                  fi
+
+                  echo "Databases to back up: $databases"
+
+                  while IFS= read -r db; do
+                    echo "--- Backing up: $db ---"
+                    dump_file="${DUMP_DIR}/${db}.dump"
+                    pg_dump -h "$PGHOST" --verbose -U "$PGUSER" -p "$PGPORT" -Fc -f "$dump_file" "$db"
+                    restic backup --tag "${BACKUP_TAG_PREFIX}-${db}" "$dump_file"
+                    rm -f "$dump_file"
+                    echo "--- Done: $db ---"
+                  done <<<"$databases"
+
+                  echo "All backups complete."
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+{{- end }}

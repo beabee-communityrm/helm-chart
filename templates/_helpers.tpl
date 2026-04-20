@@ -39,7 +39,7 @@ component: {{ .component }}
 Default secret name — falls back to the release name.
 */}}
 {{- define "beabee.secretName" -}}
-{{- default (include "beabee.fullname" .) .Values.secretName }}
+{{- default (printf "env-%s" (include "beabee.fullname" .)) .Values.secretName }}
 {{- end }}
 
 {{/*

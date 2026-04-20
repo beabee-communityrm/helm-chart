@@ -4,7 +4,7 @@ image:
 # ---------------------------------------------------------------------------
 # External secret (managed outside this chart, e.g. via SOPS)
 # The chart never templates secret values — only references by name.
-# Defaults to "{{ .Release.Name }}" (i.e. the Helm release name).
+# Defaults to "env-{{ .Release.Name }}" (i.e. the env-beabee-portzero secret from env.sops.yaml).
 # ---------------------------------------------------------------------------
 secretName: ""
 
@@ -122,6 +122,12 @@ redis:
 
 migration:
   enabled: false
+
+pgBackup:
+  enabled: false
+  schedule: "0 2 * * *"
+  tagPrefix: "k8s"
+  resticSecretName: "restic-backup"  # reflected from correctiv-beabee-system namespace
 
 cnpg:
   enabled: false
