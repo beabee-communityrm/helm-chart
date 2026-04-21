@@ -48,7 +48,7 @@ config:
 # Component settings
 # ---------------------------------------------------------------------------
 apiApp:
-  enabled: false
+  enabled: true
   replicaCount: 1
   resources:
     requests:
@@ -59,7 +59,7 @@ apiApp:
       memory: "512Mi"
 
 webhookApp:
-  enabled: false
+  enabled: true
   replicaCount: 1
   resources:
     requests:
@@ -70,7 +70,7 @@ webhookApp:
       memory: "512Mi"
 
 legacyApp:
-  enabled: false
+  enabled: true
   replicaCount: 1
   resources:
     requests:
@@ -81,7 +81,7 @@ legacyApp:
       memory: "512Mi"
 
 cronApp:
-  enabled: false
+  enabled: true
   replicaCount: 1
   resources:
     requests:
@@ -92,7 +92,7 @@ cronApp:
       memory: "256Mi"
 
 frontend:
-  enabled: false
+  enabled: true
   replicaCount: 1
   resources:
     requests:
@@ -103,7 +103,7 @@ frontend:
       memory: "256Mi"
 
 router:
-  enabled: false
+  enabled: true
   replicaCount: 1
   resources:
     requests:
@@ -114,7 +114,7 @@ router:
       memory: "256Mi"
 
 redis:
-  enabled: false
+  enabled: true
   image: redis:8.2-alpine
   replicaCount: 1
   resources:
