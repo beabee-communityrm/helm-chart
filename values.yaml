@@ -105,8 +105,6 @@ frontend:
 router:
   enabled: false
   replicaCount: 1
-  service:
-    type: LoadBalancer
   resources:
     requests:
       cpu: "50m"

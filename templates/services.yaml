@@ -82,7 +82,6 @@ spec:
     - port: 80
       targetPort: 80
       protocol: TCP
-  type: {{ .Values.router.service.type }}
 {{- end }}
 {{- if .Values.redis.enabled }}
 ---
