@@ -4,6 +4,8 @@ kind: Database
 metadata:
   name: {{ default .Release.Name .Values.cnpg.databaseName }}
   namespace: {{ .Values.cnpg.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   name: {{ default .Release.Name .Values.cnpg.databaseName }}
   owner: {{ default .Release.Name .Values.cnpg.owner }}

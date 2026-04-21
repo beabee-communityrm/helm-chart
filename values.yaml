@@ -48,6 +48,7 @@ config:
 # Component settings
 # ---------------------------------------------------------------------------
 apiApp:
+  enabled: false
   replicaCount: 1
   resources:
     requests:
@@ -58,6 +59,7 @@ apiApp:
       memory: "512Mi"
 
 webhookApp:
+  enabled: false
   replicaCount: 1
   resources:
     requests:
@@ -68,6 +70,7 @@ webhookApp:
       memory: "512Mi"
 
 legacyApp:
+  enabled: false
   replicaCount: 1
   resources:
     requests:
@@ -78,6 +81,7 @@ legacyApp:
       memory: "512Mi"
 
 cronApp:
+  enabled: false
   replicaCount: 1
   resources:
     requests:
@@ -88,6 +92,7 @@ cronApp:
       memory: "256Mi"
 
 frontend:
+  enabled: false
   replicaCount: 1
   resources:
     requests:
@@ -98,6 +103,7 @@ frontend:
       memory: "256Mi"
 
 router:
+  enabled: false
   replicaCount: 1
   service:
     type: LoadBalancer
@@ -110,6 +116,7 @@ router:
       memory: "256Mi"
 
 redis:
+  enabled: false
   image: redis:8.2-alpine
   replicaCount: 1
   resources:
@@ -125,7 +132,7 @@ migration:
 
 
 cnpg:
-  enabled: false
+  enabled: true
   namespace: pg-beabee
   clusterName: pg-beabee
   databaseName: ""  # defaults to .Release.Name

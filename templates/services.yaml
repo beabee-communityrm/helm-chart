@@ -1,3 +1,5 @@
+{{- if .Values.apiApp.enabled }}
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -12,6 +14,8 @@ spec:
     - port: 80
       targetPort: 3000
       protocol: TCP
+{{- end }}
+{{- if .Values.legacyApp.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -27,6 +31,8 @@ spec:
     - port: 80
       targetPort: 3000
       protocol: TCP
+{{- end }}
+{{- if .Values.webhookApp.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -42,6 +48,8 @@ spec:
     - port: 80
       targetPort: 3000
       protocol: TCP
+{{- end }}
+{{- if .Values.frontend.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -57,6 +65,8 @@ spec:
     - port: 80
       targetPort: 80
       protocol: TCP
+{{- end }}
+{{- if .Values.router.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -73,6 +83,8 @@ spec:
       targetPort: 80
       protocol: TCP
   type: {{ .Values.router.service.type }}
+{{- end }}
+{{- if .Values.redis.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -88,3 +100,4 @@ spec:
     - port: 6379
       targetPort: 6379
       protocol: TCP
+{{- end }}
