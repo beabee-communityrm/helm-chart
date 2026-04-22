@@ -131,7 +131,7 @@ migration:
 
 cnpg:
   enabled: true
-  namespace: pg-beabee
-  clusterName: pg-beabee
+  namespace: hive-pg
+  clusterName: hive-pg
   databaseName: ""  # defaults to .Release.Name
   owner: ""         # defaults to .Release.Name
