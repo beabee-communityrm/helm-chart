@@ -1,0 +1,42 @@
+{{- if .Values.ingress.enabled }}
+{{- $fullName := include "beabee.fullname" . -}}
+{{- $tlsSecret := default (printf "%s-tls" $fullName) .Values.ingress.tlsSecret -}}
+{{- $hosts := list }}
+{{- if .Values.ingress.host }}{{ $hosts = append $hosts .Values.ingress.host }}{{- end }}
+{{- range .Values.ingress.extraHosts }}{{ $hosts = append $hosts . }}{{- end }}
+{{- if not $hosts }}{{ fail "ingress.enabled=true but no ingress.host/extraHosts set (host is injected from the tenant secret via valuesFrom)" }}{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer | quote }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts:
+        {{- range $hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ $tlsSecret }}
+  rules:
+    {{- range $hosts }}
+    - host: {{ . | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                # All tenant traffic enters through the per-tenant router (nginx),
+                # which fans out to frontend / legacy / api internally.
+                name: {{ $fullName }}-router
+                port:
+                  number: 80
+    {{- end }}
+{{- end }}
