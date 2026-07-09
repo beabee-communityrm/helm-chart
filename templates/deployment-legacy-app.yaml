@@ -20,8 +20,6 @@ spec:
         - name: legacy-app
           image: beabee/beabee-legacy-app:{{ .Values.image.tag }}
           envFrom:
-            - configMapRef:
-                name: {{ include "beabee.fullname" . }}-config
             - secretRef:
                 name: {{ include "beabee.secretName" . }}
           {{- with (include "beabee.secretRefEnv" .) }}

@@ -22,27 +22,31 @@ secretRefs: {}
 #    key: DATABASE_URL          # optional: defaults to the env var name
 
 # ---------------------------------------------------------------------------
-# Per-tenant config (rendered as a ConfigMap by this chart)
+# Ingress (cluster ingress-nginx -> per-tenant router). TLS via cert-manager
+# HTTP-01. Disabled by default; tenants opt in and supply their host(s).
 # ---------------------------------------------------------------------------
-config:
-  BEABEE_AUDIENCE: "https://example.com"
-  BEABEE_COOKIE_DOMAIN: "example.com"
-  BEABEE_COOKIE_SECURE: "true"
-  BEABEE_DEV: "false"
-  BEABEE_DOMAIN: "example.com"
-  BEABEE_ENVIRONMENT: "production"
-  BEABEE_TRUSTEDORIGINS: "https://example.com"
-  BEABEE_EXPERIMENTAL_FEATURES: ""
-  BEABEE_CNR_MODE: ""
-  BEABEE_COUNTRYCODE: "de"
-  BEABEE_CURRENCYCODE: "EUR"
-  BEABEE_CURRENCYSYMBOL: "€"
-  BEABEE_EMAIL_PROVIDER: "smtp"
-  BEABEE_NEWSLETTER_PROVIDER: "none"
-  BEABEE_GOCARDLESS_SANDBOX: "true"
-  BEABEE_STRIPE_COUNTRY: "eu"
-  BEABEE_MINIO_ENDPOINT: "http://minio:9000"
-  BEABEE_MINIO_BUCKET: "uploads"
+ingress:
+  enabled: false
+  className: nginx
+  # Use letsencrypt-staging while validating, then switch to letsencrypt-prod.
+  clusterIssuer: letsencrypt-staging
+  # Primary host — injected at release time from the tenant's sealed secret
+  # (HelmRelease valuesFrom: BEABEE_DOMAIN -> ingress.host), so no hostname is
+  # stored in plaintext in git.
+  host: ""
+  # Optional additional hosts (e.g. a customer's custom domain).
+  extraHosts: []
+  # TLS secret name; defaults to "<release>-tls" when left blank.
+  tlsSecret: ""
+  # Extra ingress annotations (merged with the cert-manager one).
+  annotations: {}
+
+# ---------------------------------------------------------------------------
+# All tenant env — including non-secret vars like BEABEE_DOMAIN / COUNTRYCODE —
+# lives in the tenant's single sealed secret (env-<release>, from env.sops.yaml)
+# and reaches every component via envFrom / secretKeyRef. The chart no longer
+# renders a ConfigMap: one source of truth per tenant.
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Component settings

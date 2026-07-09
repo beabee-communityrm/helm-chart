@@ -20,8 +20,6 @@ spec:
         - name: webhook-app
           image: beabee/beabee-webhook-app:{{ .Values.image.tag }}
           envFrom:
-            - configMapRef:
-                name: {{ include "beabee.fullname" . }}-config
             - secretRef:
                 name: {{ include "beabee.secretName" . }}
           {{- with (include "beabee.secretRefEnv" .) }}

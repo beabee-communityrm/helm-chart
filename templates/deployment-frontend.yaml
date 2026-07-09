@@ -20,24 +20,24 @@ spec:
         - name: frontend
           image: beabee/beabee-frontend:{{ .Values.image.tag }}
           env:
-            # Per-tenant config
+            # Per-tenant config — from the single tenant secret
             - name: APP_BASE_URL
               valueFrom:
-                configMapKeyRef:
-                  name: {{ include "beabee.fullname" . }}-config
+                secretKeyRef:
+                  name: {{ include "beabee.secretName" . }}
                   key: BEABEE_AUDIENCE
             - name: API_BASE_URL
               value: /api/1.0
             - name: CNR_MODE
               valueFrom:
-                configMapKeyRef:
-                  name: {{ include "beabee.fullname" . }}-config
+                secretKeyRef:
+                  name: {{ include "beabee.secretName" . }}
                   key: BEABEE_CNR_MODE
                   optional: true
             - name: EXPERIMENTAL_FEATURES
               valueFrom:
-                configMapKeyRef:
-                  name: {{ include "beabee.fullname" . }}-config
+                secretKeyRef:
+                  name: {{ include "beabee.secretName" . }}
                   key: BEABEE_EXPERIMENTAL_FEATURES
                   optional: true
             # Shared secrets

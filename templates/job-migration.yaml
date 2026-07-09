@@ -23,8 +23,6 @@ spec:
           image: beabee/beabee-api-app:{{ .Values.image.tag }}
           command: ['npm', 'run', 'typeorm', 'migration:run']
           envFrom:
-            - configMapRef:
-                name: {{ include "beabee.fullname" . }}-config
             - secretRef:
                 name: {{ include "beabee.secretName" . }}
           {{- with (include "beabee.secretRefEnv" .) }}

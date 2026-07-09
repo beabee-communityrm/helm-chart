@@ -20,16 +20,16 @@ spec:
         - name: router
           image: beabee/beabee-router:{{ .Values.image.tag }}
           env:
-            # Per-tenant config
+            # Per-tenant config — from the single tenant secret
             - name: LEGACY_APP_COOKIE_DOMAIN
               valueFrom:
-                configMapKeyRef:
-                  name: {{ include "beabee.fullname" . }}-config
+                secretKeyRef:
+                  name: {{ include "beabee.secretName" . }}
                   key: BEABEE_COOKIE_DOMAIN
             - name: TRUSTED_ORIGINS
               valueFrom:
-                configMapKeyRef:
-                  name: {{ include "beabee.fullname" . }}-config
+                secretKeyRef:
+                  name: {{ include "beabee.secretName" . }}
                   key: BEABEE_TRUSTEDORIGINS
             # Internal service hostnames
             - name: API_APP_HOST
