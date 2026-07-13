@@ -3,10 +3,9 @@ image:
 
 # ---------------------------------------------------------------------------
 # External secret (managed outside this chart, e.g. via SOPS)
-# The chart never templates secret values — only references by name.
-# Defaults to "env-{{ .Release.Name }}" (i.e. the env-beabee-portzero secret from env.sops.yaml).
+# The chart never templates secret values — only references by name. The secret
+# is always env-<release> (e.g. env-beabee-portzero from env.sops.yaml).
 # ---------------------------------------------------------------------------
-secretName: ""
 
 # Override individual env vars to pull from a different secret.
 # Useful when splitting tenant vs shared secrets later.

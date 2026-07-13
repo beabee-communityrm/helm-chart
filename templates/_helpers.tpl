@@ -1,18 +1,9 @@
 {{/*
-Create a default fully qualified app name.
-If release name contains chart name it will be used as a full name.
+Fully qualified app name. Releases are always named beabee-<tenant>, so the
+release name is the name — just enforce the k8s 63-char limit.
 */}}
 {{- define "beabee.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
 {{- end }}
 
 {{/*
@@ -36,10 +27,10 @@ component: {{ .component }}
 {{- end }}
 
 {{/*
-Default secret name — falls back to the release name.
+Name of the tenant's env secret. Always env-<release> (the SOPS convention).
 */}}
 {{- define "beabee.secretName" -}}
-{{- default (printf "env-%s" (include "beabee.fullname" .)) .Values.secretName }}
+env-{{ include "beabee.fullname" . }}
 {{- end }}
 
 {{/*
