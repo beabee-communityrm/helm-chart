@@ -117,18 +117,6 @@ router:
       cpu: "200m"
       memory: "256Mi"
 
-redis:
-  enabled: true
-  image: redis:8.2-alpine
-  replicaCount: 1
-  resources:
-    requests:
-      cpu: "100m"
-      memory: "128Mi"
-    limits:
-      cpu: "200m"
-      memory: "256Mi"
-
 migration:
   enabled: false
 
