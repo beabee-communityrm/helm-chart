@@ -1,53 +1,34 @@
-{{- if .Values.apiApp.enabled }}
+{{/*
+App backend Services — api/legacy/webhook share one shape: 3000 (router-facing
+app traffic) and 4000 (service-to-service). Mirrors deployment-backend.yaml.
+*/}}
+{{- $appServices := list
+    (dict "key" "apiApp"     "name" "api-app")
+    (dict "key" "legacyApp"  "name" "legacy-app")
+    (dict "key" "webhookApp" "name" "webhook-app") -}}
+{{- range $s := $appServices }}
+{{- if (index $.Values $s.key).enabled }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "beabee.fullname" . }}-api-app
+  name: {{ include "beabee.fullname" $ }}-{{ $s.name }}
   labels:
-    {{- include "beabee.labels" . | nindent 4 }}
-    component: api-app
+    {{- include "beabee.labels" $ | nindent 4 }}
+    component: {{ $s.name }}
 spec:
   selector:
-    {{- include "beabee.selectorLabels" (dict "component" "api-app") | nindent 4 }}
+    {{- include "beabee.selectorLabels" (dict "component" $s.name) | nindent 4 }}
   ports:
-    - port: 80
+    - name: http
+      port: 3000
       targetPort: 3000
+      protocol: TCP
+    - name: messaging
+      port: 4000
+      targetPort: 4000
       protocol: TCP
 {{- end }}
-{{- if .Values.legacyApp.enabled }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "beabee.fullname" . }}-legacy-app
-  labels:
-    {{- include "beabee.labels" . | nindent 4 }}
-    component: legacy-app
-spec:
-  selector:
-    {{- include "beabee.selectorLabels" (dict "component" "legacy-app") | nindent 4 }}
-  ports:
-    - port: 80
-      targetPort: 3000
-      protocol: TCP
-{{- end }}
-{{- if .Values.webhookApp.enabled }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "beabee.fullname" . }}-webhook-app
-  labels:
-    {{- include "beabee.labels" . | nindent 4 }}
-    component: webhook-app
-spec:
-  selector:
-    {{- include "beabee.selectorLabels" (dict "component" "webhook-app") | nindent 4 }}
-  ports:
-    - port: 80
-      targetPort: 3000
-      protocol: TCP
 {{- end }}
 {{- if .Values.frontend.enabled }}
 ---
