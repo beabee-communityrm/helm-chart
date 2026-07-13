@@ -4,6 +4,15 @@ image:
   tag: ""
 
 # ---------------------------------------------------------------------------
+# Hive-level config. hive.domain is the authoritative tenant domain (replaces
+# BEABEE_DOMAIN): it sets the ingress host and derives BEABEE_AUDIENCE /
+# _COOKIE_DOMAIN / _WEBHOOKURL. Injected per release via HelmRelease valuesFrom.
+# ---------------------------------------------------------------------------
+hive:
+  domain: ""   # authoritative tenant domain
+  id: ""       # short tenant id (no beabee- prefix); webhook host is <id>.clients.hive.beabee.io
+
+# ---------------------------------------------------------------------------
 # External secret (managed outside this chart, e.g. via SOPS)
 # The chart never templates secret values — only references by name. The secret
 # is always env-<release> (e.g. env-beabee-portzero from env.sops.yaml).
@@ -31,22 +40,17 @@ ingress:
   className: nginx
   # Use letsencrypt-staging while validating, then switch to letsencrypt-prod.
   clusterIssuer: letsencrypt-staging
-  # Primary host — injected at release time from the tenant's sealed secret
-  # (HelmRelease valuesFrom: BEABEE_DOMAIN -> ingress.host), so no hostname is
-  # stored in plaintext in git.
-  host: ""
-  # Optional additional hosts (e.g. a customer's custom domain).
-  extraHosts: []
   # TLS secret name; defaults to "<release>-tls" when left blank.
   tlsSecret: ""
   # Extra ingress annotations (merged with the cert-manager one).
   annotations: {}
 
 # ---------------------------------------------------------------------------
-# All tenant env — including non-secret vars like BEABEE_DOMAIN / COUNTRYCODE —
-# lives in the tenant's single sealed secret (env-<release>, from env.sops.yaml)
-# and reaches every component via envFrom / secretKeyRef. The chart no longer
-# renders a ConfigMap: one source of truth per tenant.
+# All tenant env — including non-secret vars like BEABEE_COUNTRYCODE — lives in
+# the tenant's single sealed secret (env-<release>, from env.sops.yaml) and
+# reaches every component via envFrom / secretKeyRef. The chart no longer renders
+# a ConfigMap: one source of truth per tenant. The exception is the
+# domain-derived env (see hive: above), computed by the chart from hive.domain.
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------

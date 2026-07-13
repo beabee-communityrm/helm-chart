@@ -46,3 +46,41 @@ Explicit env entries override envFrom, so these win over the default secret.
       key: {{ default $envVar $ref.key }}
 {{- end }}
 {{- end }}
+
+{{/*
+The tenant's Hive domain
+*/}}
+{{- define "beabee.hiveDomain" -}}
+{{ .Values.hive.id }}.clients.hive.beabee.io
+{{- end }}
+
+{{/*
+HIVE_SERVICE_* — in-cluster DNS of the service upstreams, as host-only URLs
+(scheme + hostname, no port; each consumer appends the port it needs).
+*/}}
+{{- define "beabee.hiveServiceEnv" -}}
+{{- $fullname := include "beabee.fullname" . -}}
+{{- $suffix := printf "%s.svc.cluster.local" .Release.Namespace -}}
+- name: HIVE_SERVICE_APP
+  value: "http://{{ $fullname }}-legacy-app.{{ $suffix }}"
+- name: HIVE_SERVICE_API_APP
+  value: "http://{{ $fullname }}-api-app.{{ $suffix }}"
+- name: HIVE_SERVICE_WEBHOOK_APP
+  value: "http://{{ $fullname }}-webhook-app.{{ $suffix }}"
+- name: HIVE_SERVICE_FRONTEND
+  value: "http://{{ $fullname }}-frontend.{{ $suffix }}"
+{{- end }}
+
+{{/*
+Domain-derived env from hive.domain / hive.id — the Helm analog of
+hive-deploy-stack's x-backend-env (BEABEE_ vars derived from HIVE_DOMAIN /
+HIVE_ID). Rendered as explicit env, so they override the tenant secret.
+*/}}
+{{- define "beabee.hiveDerivedEnv" -}}
+- name: BEABEE_AUDIENCE
+  value: "https://{{ .Values.hive.domain }}"
+- name: BEABEE_COOKIE_DOMAIN
+  value: "{{ .Values.hive.domain }}"
+- name: BEABEE_WEBHOOKURL
+  value: "https://{{ include "beabee.hiveDomain" . }}"
+{{- end }}

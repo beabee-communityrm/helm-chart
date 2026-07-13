@@ -1,13 +1,13 @@
 {{/*
-Backend apps. All share one Deployment shape — the Helm analog of the compose
-stack's x-backend-app / x-service-app anchors. Each entry only names what
-differs: values key, component/image name, and port (cron has none). Per-service
-values keys (apiApp, webhookApp, …) are unchanged.
+Backend apps. All share one Deployment shape and each entry only names what
+differs: values key, component/image name, and ports. Each app serves 3000
+(router-facing app traffic) and 4000 (service-to-service messaging); cron serves
+neither — nothing routes to it. Per-service values keys (apiApp, …) are unchanged.
 */}}
 {{- $backends := list
-    (dict "key" "apiApp"     "name" "api-app"     "port" 3000)
-    (dict "key" "webhookApp" "name" "webhook-app" "port" 3000)
-    (dict "key" "legacyApp"  "name" "legacy-app"  "port" 3000)
+    (dict "key" "apiApp"     "name" "api-app"     "ports" (list 3000 4000))
+    (dict "key" "webhookApp" "name" "webhook-app" "ports" (list 3000 4000))
+    (dict "key" "legacyApp"  "name" "legacy-app"  "ports" (list 3000 4000))
     (dict "key" "cronApp"    "name" "cron-app") -}}
 {{- range $b := $backends }}
 {{- $cfg := index $.Values $b.key }}
@@ -36,13 +36,19 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ include "beabee.secretName" $ }}
-          {{- with (include "beabee.secretRefEnv" $) }}
           env:
+            {{- include "beabee.hiveDerivedEnv" $ | nindent 12 }}
+            {{- /* HIVE_ vars are normally infra-only, but the backend NetworkCommunicator
+                   needs HIVE_SERVICE_* for now — an accepted anti-pattern (monorepo#630). */}}
+            {{- include "beabee.hiveServiceEnv" $ | nindent 12 }}
+            {{- with (include "beabee.secretRefEnv" $) }}
             {{- . | nindent 12 }}
-          {{- end }}
-          {{- with $b.port }}
+            {{- end }}
+          {{- with $b.ports }}
           ports:
+            {{- range . }}
             - containerPort: {{ . }}
+            {{- end }}
           {{- end }}
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}

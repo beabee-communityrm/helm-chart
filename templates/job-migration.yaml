@@ -25,8 +25,9 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ include "beabee.secretName" . }}
-          {{- with (include "beabee.secretRefEnv" .) }}
           env:
+            {{- include "beabee.hiveDerivedEnv" . | nindent 12 }}
+            {{- with (include "beabee.secretRefEnv" .) }}
             {{- . | nindent 12 }}
-          {{- end }}
+            {{- end }}
 {{- end }}

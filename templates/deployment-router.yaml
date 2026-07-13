@@ -20,26 +20,17 @@ spec:
         - name: router
           image: beabee/beabee-router:{{ .Values.image.tag | default .Chart.AppVersion }}
           env:
-            # Per-tenant config — from the single tenant secret
+            # Domain-derived (from hive.domain), see _helpers.tpl
             - name: LEGACY_APP_COOKIE_DOMAIN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "beabee.secretName" . }}
-                  key: BEABEE_COOKIE_DOMAIN
+              value: "{{ .Values.hive.domain }}"
+            # Per-tenant config — from the single tenant secret
             - name: TRUSTED_ORIGINS
               valueFrom:
                 secretKeyRef:
                   name: {{ include "beabee.secretName" . }}
                   key: BEABEE_TRUSTEDORIGINS
-            # Internal service hostnames
-            - name: API_APP_HOST
-              value: {{ include "beabee.fullname" . }}-api-app
-            - name: LEGACY_APP_HOST
-              value: {{ include "beabee.fullname" . }}-legacy-app
-            - name: WEBHOOK_APP_HOST
-              value: {{ include "beabee.fullname" . }}-webhook-app
-            - name: FRONTEND_APP_HOST
-              value: {{ include "beabee.fullname" . }}-frontend
+            # Upstream service DNS (router routes to these), see _helpers.tpl
+            {{- include "beabee.hiveServiceEnv" . | nindent 12 }}
           ports:
             - containerPort: 80
           resources:

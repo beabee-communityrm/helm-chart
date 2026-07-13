@@ -20,12 +20,8 @@ spec:
         - name: frontend
           image: beabee/beabee-frontend:{{ .Values.image.tag | default .Chart.AppVersion }}
           env:
-            # Per-tenant config — from the single tenant secret
             - name: APP_BASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "beabee.secretName" . }}
-                  key: BEABEE_AUDIENCE
+              value: "https://{{ .Values.hive.domain }}"
             - name: API_BASE_URL
               value: /api/1.0
             - name: CNR_MODE
@@ -34,13 +30,6 @@ spec:
                   name: {{ include "beabee.secretName" . }}
                   key: BEABEE_CNR_MODE
                   optional: true
-            - name: EXPERIMENTAL_FEATURES
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "beabee.secretName" . }}
-                  key: BEABEE_EXPERIMENTAL_FEATURES
-                  optional: true
-            # Shared secrets
             - name: APPSIGNAL_KEY
               valueFrom:
                 secretKeyRef:
