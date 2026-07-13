@@ -1,0 +1,50 @@
+{{/*
+Backend apps. All share one Deployment shape — the Helm analog of the compose
+stack's x-backend-app / x-service-app anchors. Each entry only names what
+differs: values key, component/image name, and port (cron has none). Per-service
+values keys (apiApp, webhookApp, …) are unchanged.
+*/}}
+{{- $backends := list
+    (dict "key" "apiApp"     "name" "api-app"     "port" 3000)
+    (dict "key" "webhookApp" "name" "webhook-app" "port" 3000)
+    (dict "key" "legacyApp"  "name" "legacy-app"  "port" 3000)
+    (dict "key" "cronApp"    "name" "cron-app") -}}
+{{- range $b := $backends }}
+{{- $cfg := index $.Values $b.key }}
+{{- if $cfg.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "beabee.fullname" $ }}-{{ $b.name }}
+  labels:
+    {{- include "beabee.labels" $ | nindent 4 }}
+    component: {{ $b.name }}
+spec:
+  replicas: {{ $cfg.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "beabee.selectorLabels" (dict "component" $b.name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "beabee.selectorLabels" (dict "component" $b.name) | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ $b.name }}
+          image: beabee/beabee-{{ $b.name }}:{{ $.Values.image.tag | default $.Chart.AppVersion }}
+          envFrom:
+            - secretRef:
+                name: {{ include "beabee.secretName" $ }}
+          {{- with (include "beabee.secretRefEnv" $) }}
+          env:
+            {{- . | nindent 12 }}
+          {{- end }}
+          {{- with $b.port }}
+          ports:
+            - containerPort: {{ . }}
+          {{- end }}
+          resources:
+            {{- toYaml $cfg.resources | nindent 12 }}
+{{- end }}
+{{- end }}
