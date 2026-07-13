@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: router
-          image: beabee/beabee-router:{{ .Values.image.tag }}
+          image: beabee/beabee-router:{{ .Values.image.tag | default .Chart.AppVersion }}
           env:
             # Per-tenant config — from the single tenant secret
             - name: LEGACY_APP_COOKIE_DOMAIN

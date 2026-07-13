@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: beabee/beabee-frontend:{{ .Values.image.tag }}
+          image: beabee/beabee-frontend:{{ .Values.image.tag | default .Chart.AppVersion }}
           env:
             # Per-tenant config — from the single tenant secret
             - name: APP_BASE_URL

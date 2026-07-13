@@ -20,7 +20,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: migration
-          image: beabee/beabee-api-app:{{ .Values.image.tag }}
+          image: beabee/beabee-api-app:{{ .Values.image.tag | default .Chart.AppVersion }}
           command: ['npm', 'run', 'typeorm', 'migration:run']
           envFrom:
             - secretRef:
