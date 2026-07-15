@@ -4,19 +4,12 @@ image:
   tag: ""
 
 # ---------------------------------------------------------------------------
-# Hive-level config. hive.domain is the authoritative tenant domain (replaces
-# BEABEE_DOMAIN): it sets the ingress host and derives BEABEE_AUDIENCE /
-# _COOKIE_DOMAIN / _WEBHOOKURL. Injected per release via HelmRelease valuesFrom.
+# Hive-level config.
 # ---------------------------------------------------------------------------
 hive:
-  domain: ""   # authoritative tenant domain
   id: ""       # short tenant id (no beabee- prefix); webhook host is <id>.clients.hive.beabee.io
-
-# ---------------------------------------------------------------------------
-# External secret (managed outside this chart, e.g. via SOPS)
-# The chart never templates secret values — only references by name. The secret
-# is always env-<release> (e.g. env-beabee-portzero from env.sops.yaml).
-# ---------------------------------------------------------------------------
+  domain: ""   # authoritative tenant domain
+  insecure: false   # true = derive http:// (not https://) public URLs — local testing only
 
 # Override individual env vars to pull from a different secret.
 # Useful when splitting tenant vs shared secrets later.
@@ -44,14 +37,6 @@ ingress:
   tlsSecret: ""
   # Extra ingress annotations (merged with the cert-manager one).
   annotations: {}
-
-# ---------------------------------------------------------------------------
-# All tenant env — including non-secret vars like BEABEE_COUNTRYCODE — lives in
-# the tenant's single sealed secret (env-<release>, from env.sops.yaml) and
-# reaches every component via envFrom / secretKeyRef. The chart no longer renders
-# a ConfigMap: one source of truth per tenant. The exception is the
-# domain-derived env (see hive: above), computed by the chart from hive.domain.
-# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Component settings

@@ -3,4 +3,4 @@ name: beabee
 description: Helm chart for the beabee application
 type: application
 version: 0.3.0
-appVersion: "v0.46.1"
+appVersion: latest

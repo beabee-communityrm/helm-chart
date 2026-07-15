@@ -21,7 +21,7 @@ spec:
           image: beabee/beabee-frontend:{{ .Values.image.tag | default .Chart.AppVersion }}
           env:
             - name: APP_BASE_URL
-              value: "https://{{ .Values.hive.domain }}"
+              value: {{ printf "%s://%s" (include "beabee.scheme" .) .Values.hive.domain | quote }}
             - name: API_BASE_URL
               value: /api/1.0
             - name: CNR_MODE

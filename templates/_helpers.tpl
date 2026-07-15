@@ -72,15 +72,30 @@ HIVE_SERVICE_* — in-cluster DNS of the service upstreams, as host-only URLs
 {{- end }}
 
 {{/*
+URL scheme for the tenant's public URLs — https, or http when hive.insecure
+(local/testing over plain http).
+*/}}
+{{- define "beabee.scheme" -}}
+{{- ternary "http" "https" .Values.hive.insecure -}}
+{{- end }}
+
+{{/*
+Cookie domain: hive.domain with any port stripped — cookies can't carry a port.
+*/}}
+{{- define "beabee.cookieDomain" -}}
+{{ .Values.hive.domain | splitList ":" | first }}
+{{- end }}
+
+{{/*
 Domain-derived env from hive.domain / hive.id — the Helm analog of
 hive-deploy-stack's x-backend-env (BEABEE_ vars derived from HIVE_DOMAIN /
 HIVE_ID). Rendered as explicit env, so they override the tenant secret.
 */}}
 {{- define "beabee.hiveDerivedEnv" -}}
 - name: BEABEE_AUDIENCE
-  value: "https://{{ .Values.hive.domain }}"
+  value: {{ printf "%s://%s" (include "beabee.scheme" .) .Values.hive.domain | quote }}
 - name: BEABEE_COOKIE_DOMAIN
-  value: "{{ .Values.hive.domain }}"
+  value: {{ include "beabee.cookieDomain" . | quote }}
 - name: BEABEE_WEBHOOKURL
-  value: "https://{{ include "beabee.hiveDomain" . }}"
+  value: {{ printf "%s://%s" (include "beabee.scheme" .) (include "beabee.hiveDomain" .) | quote }}
 {{- end }}
