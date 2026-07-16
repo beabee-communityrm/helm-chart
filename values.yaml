@@ -47,21 +47,21 @@ apiApp:
   resources:
     requests:
       cpu: "100m"
-      memory: "164Mi"
+      memory: "192Mi"
     limits:
-      cpu: "500m"
-      memory: "512Mi"
+      cpu: "2"
+      memory: "768Mi"
 
 webhookApp:
   enabled: true
   replicaCount: 1
   resources:
     requests:
-      cpu: "100m"
-      memory: "164Mi"
+      cpu: "50m"
+      memory: "128Mi"
     limits:
-      cpu: "500m"
-      memory: "512Mi"
+      cpu: "2"
+      memory: "256Mi"
 
 legacyApp:
   enabled: true
@@ -69,43 +69,46 @@ legacyApp:
   resources:
     requests:
       cpu: "100m"
-      memory: "164Mi"
+      memory: "160Mi"
     limits:
-      cpu: "500m"
+      cpu: "2"
       memory: "512Mi"
 
+# Idle daemon is ~11Mi, but each triggered job spawns a full backend-cli boot
+# (same code as the app tier) in this cgroup, and overlapping hourly jobs stack.
+# Sized like the app tier; refine from measured memory.peak.
 cronApp:
   enabled: true
   replicaCount: 1
   resources:
     requests:
       cpu: "50m"
-      memory: "64Mi"
+      memory: "128Mi"
     limits:
-      cpu: "200m"
-      memory: "256Mi"
+      cpu: "2"
+      memory: "512Mi"
 
 frontend:
   enabled: true
   replicaCount: 1
   resources:
     requests:
-      cpu: "50m"
-      memory: "64Mi"
+      cpu: "25m"
+      memory: "32Mi"
     limits:
-      cpu: "200m"
-      memory: "256Mi"
+      cpu: "2"
+      memory: "128Mi"
 
 router:
   enabled: true
   replicaCount: 1
   resources:
     requests:
-      cpu: "50m"
-      memory: "64Mi"
+      cpu: "25m"
+      memory: "32Mi"
     limits:
-      cpu: "200m"
-      memory: "256Mi"
+      cpu: "2"
+      memory: "128Mi"
 
 migration:
   enabled: false
