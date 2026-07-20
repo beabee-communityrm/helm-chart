@@ -120,3 +120,5 @@ cnpg:
   clusterName: hive-pg
   databaseName: ""  # defaults to .Release.Name
   owner: ""         # defaults to .Release.Name
+  extensions:
+    - uuid-ossp
