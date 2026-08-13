@@ -1,0 +1,46 @@
+{{- if .Values.zitadel.enabled }}
+{{/*
+Identity for the ZITADEL bootstrap hook (zitadel-job.yaml): it may create
+Secrets and modify exactly one — the one it writes the provisioned IDs to.
+("create" cannot be restricted by resourceNames; get/update/patch can.)
+*/}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "beabee.fullname" . }}-zitadel-bootstrap
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: zitadel-bootstrap
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "beabee.fullname" . }}-zitadel-bootstrap
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: zitadel-bootstrap
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [{{ include "beabee.zitadelSecretName" . }}]
+    verbs: [get, update, patch]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "beabee.fullname" . }}-zitadel-bootstrap
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: zitadel-bootstrap
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "beabee.fullname" . }}-zitadel-bootstrap
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "beabee.fullname" . }}-zitadel-bootstrap
+    namespace: {{ .Release.Namespace }}
+{{- end }}

@@ -122,3 +122,44 @@ cnpg:
   owner: ""         # defaults to .Release.Name
   extensions:
     - uuid-ossp
+
+# ---------------------------------------------------------------------------
+# ZITADEL (shared IdP) — org lifecycle for this tenant. STRICTLY OPT-IN.
+#
+# When enabled, a post-install/upgrade hook ensures this tenant's
+# organization, project and OIDC client in the shared ZITADEL instance and
+# writes the resulting IDs to Secret "zitadel-<release>"; a labeled Ingress
+# rendered into the zitadel namespace declares the tenant's vanity login
+# domain (registered by the central domain reconciler there). Like the CNPG
+# Database, the organization survives helm uninstall — offboarding is a
+# manual runbook step.
+#
+# Enabling this provisions ONLY. The app keeps its built-in login until it
+# consumes the provisioned values (separate app-side project).
+# ---------------------------------------------------------------------------
+zitadel:
+  enabled: false
+  # Public host of the shared ZITADEL instance, e.g. auth.hive.beabee.io.
+  # Required when enabled.
+  host: ""
+  # The namespace the shared ZITADEL runs in (target of the login-domain
+  # Ingress, like cnpg.namespace for the Database).
+  namespace: zitadel
+  # Vanity login domain for this tenant; defaults to auth.<hive.domain>.
+  # Needs a DNS record pointing at the shared ingress LB.
+  loginDomain: ""
+  # cert-manager issuer for the login-domain certificate.
+  clusterIssuer: letsencrypt-prod
+  # ZITADEL organization name; defaults to hive.id.
+  orgName: ""
+  projectName: beabee
+  # Name of the admin PAT secret (key "pat"), reflector-mirrored into this
+  # namespace from the zitadel namespace.
+  patSecretName: iam-admin-pat
+  # OAuth callback paths on the tenant's app domain (hive.domain), used for
+  # the OIDC client's redirect URIs. The default matches the app's
+  # BEABEE_OIDC_REDIRECTURI default (${BEABEE_AUDIENCE}/api/1.0/auth/callback).
+  redirectPaths:
+    - /api/1.0/auth/callback
+  postLogoutPaths:
+    - /
