@@ -87,6 +87,29 @@ Cookie domain: hive.domain with any port stripped — cookies can't carry a port
 {{- end }}
 
 {{/*
+Name of the Secret the ZITADEL bootstrap hook writes the provisioned IDs to
+(ISSUER, ORG_ID, PROJECT_ID, CLIENT_ID).
+*/}}
+{{- define "beabee.zitadelSecretName" -}}
+zitadel-{{ include "beabee.fullname" . }}
+{{- end }}
+
+{{/*
+The tenant's vanity login domain — zitadel.loginDomain, or auth.<hive.domain>.
+*/}}
+{{- define "beabee.zitadelLoginDomain" -}}
+{{ .Values.zitadel.loginDomain | default (printf "auth.%s" .Values.hive.domain) }}
+{{- end }}
+
+{{/*
+The tenant's OIDC issuer: their login domain over https. ZITADEL serves
+discovery on every registered domain and reports the queried host as issuer.
+*/}}
+{{- define "beabee.zitadelIssuer" -}}
+https://{{ include "beabee.zitadelLoginDomain" . }}
+{{- end }}
+
+{{/*
 Domain-derived env from hive.domain / hive.id — the Helm analog of
 hive-deploy-stack's x-backend-env (BEABEE_ vars derived from HIVE_DOMAIN /
 HIVE_ID). Rendered as explicit env, so they override the tenant secret.
