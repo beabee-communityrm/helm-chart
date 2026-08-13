@@ -1,0 +1,82 @@
+{{- if .Values.zitadel.enabled }}
+{{- $scheme := include "beabee.scheme" . -}}
+{{- $redirects := list -}}
+{{- range .Values.zitadel.redirectPaths -}}
+{{- $redirects = append $redirects (printf "%s://%s%s" $scheme $.Values.hive.domain .) -}}
+{{- end -}}
+{{- $postLogouts := list -}}
+{{- range .Values.zitadel.postLogoutPaths -}}
+{{- $postLogouts = append $postLogouts (printf "%s://%s%s" $scheme $.Values.hive.domain .) -}}
+{{- end -}}
+# Provisions this tenant's ZITADEL organization after every install/upgrade
+# (idempotent — see the script in zitadel-configmap.yaml). A post- hook on
+# purpose: while the app doesn't consume OIDC, a ZITADEL outage must never
+# block a normal app deploy; the migration job stays the only pre- hook.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "beabee.fullname" . }}-zitadel-bootstrap
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: zitadel-bootstrap
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "beabee.selectorLabels" (dict "component" "zitadel-bootstrap") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "beabee.fullname" . }}-zitadel-bootstrap
+      containers:
+        - name: bootstrap
+          # The app image doubles as our Node runtime — already trusted and
+          # pulled in this namespace; the script only needs node >= 24.
+          image: beabee/beabee-api-app:{{ .Values.image.tag | default .Chart.AppVersion }}
+          command: ['node', '/scripts/bootstrap.mjs']
+          env:
+            - name: ZITADEL_API
+              value: https://{{ required "zitadel.host is required when zitadel.enabled" .Values.zitadel.host }}
+            - name: ZITADEL_PAT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.zitadel.patSecretName }}
+                  key: pat
+            - name: ISSUER
+              value: {{ include "beabee.zitadelIssuer" . | quote }}
+            - name: ORG_NAME
+              value: {{ .Values.zitadel.orgName | default .Values.hive.id | quote }}
+            - name: PROJECT_NAME
+              value: {{ .Values.zitadel.projectName | quote }}
+            - name: REDIRECT_URIS
+              value: {{ join "," $redirects | quote }}
+            - name: POST_LOGOUT_URIS
+              value: {{ join "," $postLogouts | quote }}
+            - name: TARGET_SECRET
+              value: {{ include "beabee.zitadelSecretName" . }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_EXTRA_CA_CERTS
+              value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: script
+          configMap:
+            name: {{ include "beabee.fullname" . }}-zitadel-bootstrap
+{{- end }}

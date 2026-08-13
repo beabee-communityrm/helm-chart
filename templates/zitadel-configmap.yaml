@@ -1,0 +1,135 @@
+{{- if .Values.zitadel.enabled }}
+# The ZITADEL org-provisioning script, run by the post-install/upgrade hook
+# (zitadel-job.yaml). Ensures this tenant's organization, project and OIDC
+# client exist in the shared ZITADEL instance, then writes the resulting IDs
+# to Secret "{{ include "beabee.zitadelSecretName" . }}" — the handover point
+# for the app's BEABEE_OIDC_*/BEABEE_IDP_* env (see README). Everything is
+# search-then-create, so re-runs are no-ops; nothing is ever deleted here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "beabee.fullname" . }}-zitadel-bootstrap
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: zitadel-bootstrap
+data:
+  bootstrap.mjs: |
+    import { readFileSync } from 'node:fs';
+
+    const API = process.env.ZITADEL_API;           // shared instance, e.g. https://auth.hive.beabee.io
+    const PAT = process.env.ZITADEL_PAT.trim();    // admin PAT (reflected secret)
+    const ISSUER = process.env.ISSUER;             // tenant's vanity login domain URL
+    const ORG_NAME = process.env.ORG_NAME;
+    const PROJECT_NAME = process.env.PROJECT_NAME;
+    const APP_NAME = 'beabee';
+    const REDIRECT_URIS = process.env.REDIRECT_URIS.split(',');
+    const POST_LOGOUT_URIS = process.env.POST_LOGOUT_URIS.split(',');
+    const TARGET_SECRET = process.env.TARGET_SECRET; // empty = skip write (local testing)
+    const NAMESPACE = process.env.NAMESPACE;
+
+    // All ZITADEL calls are POSTs with the PAT; org-scoped endpoints (the
+    // management API) additionally carry the org id in a header.
+    async function zitadel(path, body, orgId) {
+      const res = await fetch(`${API}${path}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${PAT}`,
+          'Content-Type': 'application/json',
+          ...(orgId ? { 'x-zitadel-orgid': orgId } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}: ${text}`);
+      return JSON.parse(text);
+    }
+
+    // Each ensure step: exact-name search first, create only on no match.
+    async function ensureOrg() {
+      const found = await zitadel('/v2/organizations/_search', {
+        queries: [{ nameQuery: { name: ORG_NAME, method: 'TEXT_QUERY_METHOD_EQUALS' } }],
+      });
+      if (found.result?.[0]?.id) return { id: found.result[0].id, existed: true };
+      const created = await zitadel('/v2/organizations', { name: ORG_NAME });
+      return { id: created.organizationId ?? created.id, existed: false };
+    }
+
+    async function ensureProject(orgId) {
+      const found = await zitadel('/management/v1/projects/_search', {
+        queries: [{ nameQuery: { name: PROJECT_NAME, method: 'TEXT_QUERY_METHOD_EQUALS' } }],
+      }, orgId);
+      if (found.result?.[0]?.id) return { id: found.result[0].id, existed: true };
+      const created = await zitadel('/management/v1/projects', { name: PROJECT_NAME }, orgId);
+      return { id: created.id, existed: false };
+    }
+
+    async function ensureApp(orgId, projectId) {
+      const found = await zitadel(`/management/v1/projects/${projectId}/apps/_search`, {
+        queries: [{ nameQuery: { name: APP_NAME, method: 'TEXT_QUERY_METHOD_EQUALS' } }],
+      }, orgId);
+      const existing = found.result?.[0]?.oidcConfig?.clientId;
+      if (existing) return { clientId: existing, existed: true };
+      // Public web client with PKCE and no client secret — matches the app,
+      // which uses no client auth when BEABEE_OIDC_CLIENTSECRET is empty.
+      const created = await zitadel(`/management/v1/projects/${projectId}/apps/oidc`, {
+        name: APP_NAME,
+        redirectUris: REDIRECT_URIS,
+        postLogoutRedirectUris: POST_LOGOUT_URIS,
+        responseTypes: ['OIDC_RESPONSE_TYPE_CODE'],
+        grantTypes: ['OIDC_GRANT_TYPE_AUTHORIZATION_CODE', 'OIDC_GRANT_TYPE_REFRESH_TOKEN'],
+        appType: 'OIDC_APP_TYPE_WEB',
+        authMethodType: 'OIDC_AUTH_METHOD_TYPE_NONE',
+        accessTokenType: 'OIDC_TOKEN_TYPE_BEARER',
+      }, orgId);
+      return { clientId: created.clientId, existed: false };
+    }
+
+    // Write the results where the app (via secretRefs) can pick them up,
+    // using the in-cluster Kubernetes API with our ServiceAccount identity.
+    // NODE_EXTRA_CA_CERTS (set on the Job) makes fetch trust the cluster CA.
+    async function writeSecret(stringData) {
+      const sa = '/var/run/secrets/kubernetes.io/serviceaccount';
+      const token = readFileSync(`${sa}/token`, 'utf8');
+      const url = `https://kubernetes.default.svc/api/v1/namespaces/${NAMESPACE}/secrets`;
+      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const body = {
+        apiVersion: 'v1',
+        kind: 'Secret',
+        metadata: { name: TARGET_SECRET, namespace: NAMESPACE },
+        type: 'Opaque',
+        stringData,
+      };
+      const existing = await fetch(`${url}/${TARGET_SECRET}`, { headers });
+      if (existing.status === 404) {
+        const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error(`secret create -> HTTP ${res.status}: ${await res.text()}`);
+        return 'created';
+      }
+      if (!existing.ok) throw new Error(`secret get -> HTTP ${existing.status}: ${await existing.text()}`);
+      body.metadata.resourceVersion = (await existing.json()).metadata.resourceVersion;
+      const res = await fetch(`${url}/${TARGET_SECRET}`, { method: 'PUT', headers, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(`secret update -> HTTP ${res.status}: ${await res.text()}`);
+      return 'updated';
+    }
+
+    const org = await ensureOrg();
+    const project = await ensureProject(org.id);
+    const app = await ensureApp(org.id, project.id);
+    console.log(`org ${org.id} (${org.existed ? 'exists' : 'CREATED'}), ` +
+      `project ${project.id} (${project.existed ? 'exists' : 'CREATED'}), ` +
+      `app ${app.clientId} (${app.existed ? 'exists' : 'CREATED'})`);
+
+    const stringData = {
+      ISSUER,
+      ORG_ID: org.id,
+      PROJECT_ID: project.id,
+      CLIENT_ID: app.clientId,
+      // The full scope string for org-pinned login, ready for BEABEE_OIDC_SCOPES.
+      OIDC_SCOPES: `openid profile email urn:zitadel:iam:org:id:${org.id}`,
+    };
+    if (!TARGET_SECRET) {
+      console.log('TARGET_SECRET unset - skipping secret write:', JSON.stringify(stringData));
+    } else {
+      console.log(`secret ${TARGET_SECRET} ${await writeSecret(stringData)}`);
+    }
+{{- end }}

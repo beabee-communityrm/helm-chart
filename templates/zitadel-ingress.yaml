@@ -1,0 +1,47 @@
+{{- if .Values.zitadel.enabled }}
+# The tenant's vanity login domain, declared as an Ingress in the ZITADEL
+# namespace — the same cross-namespace pattern as database.yaml (CNPG). The
+# label is picked up by the central domain reconciler there, which registers
+# the host inside ZITADEL (instance + trusted domain). Routing and the
+# certificate are handled here; the hostname needs a DNS record pointing at
+# the shared ingress LB. Deleted with the release on purpose — the
+# ZITADEL-side domain registrations are removed manually (runbook).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zitadel-login-{{ include "beabee.fullname" . }}
+  namespace: {{ .Values.zitadel.namespace }}
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: zitadel-login-domain
+    beabee.io/zitadel-login-domain: "true"
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.zitadel.clusterIssuer }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | default "nginx" }}
+  rules:
+    - host: {{ include "beabee.zitadelLoginDomain" . | quote }}
+      http:
+        paths:
+          # OIDC endpoints (discovery, authorize, token) served by the
+          # ZITADEL API; the hosted login UI lives under /ui/v2/login.
+          # Service names/ports are those of the shared zitadel release.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zitadel
+                port:
+                  number: 8080
+          - path: /ui/v2/login
+            pathType: Prefix
+            backend:
+              service:
+                name: zitadel-login
+                port:
+                  number: 3000
+  tls:
+    - hosts:
+        - {{ include "beabee.zitadelLoginDomain" . | quote }}
+      secretName: zitadel-login-{{ include "beabee.fullname" . }}-tls
+{{- end }}
