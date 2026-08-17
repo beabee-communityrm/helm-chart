@@ -1,0 +1,14 @@
+{{- if .Values.router.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "beabee.fullname" . }}-router-defaults
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: router
+data:
+  # Defaults for env vars the router requires but the tenant secret may
+  # not provide. Loaded via envFrom, so explicit env entries (e.g. the
+  # secretKeyRef for TRUSTED_ORIGINS) override these when present.
+  TRUSTED_ORIGINS: ""
+{{- end }}

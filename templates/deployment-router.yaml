@@ -19,17 +19,19 @@ spec:
       containers:
         - name: router
           image: beabee/beabee-router:{{ .Values.image.tag | default .Chart.AppVersion }}
+          # Defaults for required env vars the tenant secret may not provide.
+          # Explicit env entries below override these; a missing optional
+          # secret key leaves the default in place. (Duplicate env entries
+          # don't work for this — strategic merge / server-side apply
+          # deduplicates the env list by name.)
+          envFrom:
+            - configMapRef:
+                name: {{ include "beabee.fullname" . }}-router-defaults
           env:
             # Domain-derived (from hive.domain), see _helpers.tpl
             - name: LEGACY_APP_COOKIE_DOMAIN
               value: "{{ .Values.hive.domain }}"
             # Per-tenant config — from the single tenant secret
-            # The router requires TRUSTED_ORIGINS to be set, but the tenant
-            # secret may not contain it. Declaring the var twice defaults it
-            # to "" — the later secretKeyRef overrides when the key exists,
-            # and is skipped (keeping the default) when it doesn't.
-            - name: TRUSTED_ORIGINS
-              value: ""
             - name: TRUSTED_ORIGINS
               valueFrom:
                 secretKeyRef:
