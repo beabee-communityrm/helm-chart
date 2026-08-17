@@ -29,6 +29,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "beabee.secretName" . }}
                   key: BEABEE_TRUSTEDORIGINS
+                  optional: true
             # Upstream service DNS (router routes to these), see _helpers.tpl
             {{- include "beabee.hiveServiceEnv" . | nindent 12 }}
           ports:
