@@ -11,7 +11,7 @@
 # cluster. This script makes that organization real. After every deploy of
 # this release it ensures three things exist in ZITADEL, in order:
 #
-#   1. the tenant's organization        (named after hive.id by default)
+#   1. the tenant's organization        (named after the release by default)
 #   2. a project inside it              (ZITADEL's grouping for apps)
 #   3. an OIDC client in that project   (what the app will authenticate
 #      against: a "public" client using PKCE, so there is no client secret

@@ -150,7 +150,10 @@ zitadel:
   loginDomain: ""
   # cert-manager issuer for the login-domain certificate.
   clusterIssuer: letsencrypt-prod
-  # ZITADEL organization name; defaults to hive.id.
+  # ZITADEL organization name; defaults to the release name (beabee-<id>),
+  # the same convention that names the database and the env secret.
+  # Effectively immutable once provisioned: the bootstrap finds the org by
+  # exact name, so changing it later would CREATE A SECOND ORG, not rename.
   orgName: ""
   projectName: beabee
   # Name of the admin PAT secret (key "pat"), reflector-mirrored into this

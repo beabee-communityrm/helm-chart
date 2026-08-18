@@ -49,7 +49,7 @@ spec:
             - name: ISSUER
               value: {{ include "beabee.zitadelIssuer" . | quote }}
             - name: ORG_NAME
-              value: {{ .Values.zitadel.orgName | default .Values.hive.id | quote }}
+              value: {{ .Values.zitadel.orgName | default (include "beabee.fullname" .) | quote }}
             - name: PROJECT_NAME
               value: {{ .Values.zitadel.projectName | quote }}
             - name: REDIRECT_URIS
