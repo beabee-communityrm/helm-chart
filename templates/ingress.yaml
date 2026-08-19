@@ -1,7 +1,7 @@
 {{- if .Values.ingress.enabled }}
 {{- $fullName := include "beabee.fullname" . -}}
 {{- $tlsSecret := default (printf "%s-tls" $fullName) .Values.ingress.tlsSecret -}}
-{{- $hosts := list .Values.hive.domain (include "beabee.hiveDomain" .) }}
+{{- $hosts := list .Values.hive.domain (include "beabee.hiveDomain" .) | uniq }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
