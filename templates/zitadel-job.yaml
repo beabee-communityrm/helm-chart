@@ -8,10 +8,16 @@
 {{- range .Values.zitadel.postLogoutPaths -}}
 {{- $postLogouts = append $postLogouts (printf "%s://%s%s" $scheme $.Values.hive.domain .) -}}
 {{- end -}}
-# Provisions this tenant's ZITADEL organization after every install/upgrade
-# (idempotent — see the script in zitadel-configmap.yaml). A post- hook on
-# purpose: while the app doesn't consume OIDC, a ZITADEL outage must never
-# block a normal app deploy; the migration job stays the only pre- hook.
+# Provisions the inside of this tenant's ZITADEL virtual instance after
+# every install/upgrade (idempotent — see the script in
+# zitadel-configmap.yaml). The instance itself is created by the central
+# reconciler from the login-domain Ingress's annotations; this job waits
+# for the instance-admin PAT Secret the reconciler delivers (a missing
+# secretKeyRef keeps the pod pending until the Secret arrives — the wait
+# is free), bounded by activeDeadlineSeconds (~3 reconciler ticks).
+# A post- hook on purpose: while the app doesn't consume OIDC, a ZITADEL
+# outage must never block a normal app deploy; the migration job stays the
+# only pre- hook.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -25,6 +31,7 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: 3
+  activeDeadlineSeconds: 900
   template:
     metadata:
       labels:
@@ -40,16 +47,26 @@ spec:
           command: ['node', '/scripts/bootstrap.mjs']
           env:
             - name: ZITADEL_API
-              value: https://{{ required "zitadel.host is required when zitadel.enabled" .Values.zitadel.host }}
+              value: {{ .Values.zitadel.internalApi | quote }}
+            # All three from the reconciler-delivered instance Secret; the
+            # pod stays pending until it exists (first-install wait).
             - name: ZITADEL_PAT
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.zitadel.patSecretName }}
+                  name: {{ include "beabee.zitadelPatSecretName" . }}
                   key: pat
+            - name: INSTANCE_DOMAIN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "beabee.zitadelPatSecretName" . }}
+                  key: generatedDomain
+            - name: INSTANCE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "beabee.zitadelPatSecretName" . }}
+                  key: instanceId
             - name: ISSUER
               value: {{ include "beabee.zitadelIssuer" . | quote }}
-            - name: ORG_NAME
-              value: {{ .Values.zitadel.orgName | default (include "beabee.fullname" .) | quote }}
             - name: PROJECT_NAME
               value: {{ .Values.zitadel.projectName | quote }}
             - name: REDIRECT_URIS

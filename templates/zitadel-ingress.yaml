@@ -17,6 +17,10 @@ metadata:
     beabee.io/zitadel-login-domain: "true"
   annotations:
     cert-manager.io/cluster-issuer: {{ .Values.zitadel.clusterIssuer }}
+    # The central reconciler reads these: which virtual instance to ensure
+    # and where to deliver its admin-PAT Secret (via the reflector).
+    beabee.io/zitadel-instance: {{ include "beabee.zitadelInstanceName" . | quote }}
+    beabee.io/pat-namespace: {{ .Release.Namespace | quote }}
 spec:
   ingressClassName: {{ .Values.ingress.className | default "nginx" }}
   rules:

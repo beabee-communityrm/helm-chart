@@ -88,10 +88,27 @@ Cookie domain: hive.domain with any port stripped — cookies can't carry a port
 
 {{/*
 Name of the Secret the ZITADEL bootstrap hook writes the provisioned IDs to
-(ISSUER, ORG_ID, PROJECT_ID, CLIENT_ID).
+(ISSUER, INSTANCE_ID, ORG_ID, PROJECT_ID, CLIENT_ID, OIDC_SCOPES).
 */}}
 {{- define "beabee.zitadelSecretName" -}}
 zitadel-{{ include "beabee.fullname" . }}
+{{- end }}
+
+{{/*
+The tenant's ZITADEL virtual-instance name — zitadel.instanceName, or the
+release name.
+*/}}
+{{- define "beabee.zitadelInstanceName" -}}
+{{ .Values.zitadel.instanceName | default (include "beabee.fullname" .) }}
+{{- end }}
+
+{{/*
+Name of the instance-admin PAT secret the central reconciler delivers into
+this namespace (via the reflector; mirrors keep the source name, so it is
+per-instance).
+*/}}
+{{- define "beabee.zitadelPatSecretName" -}}
+{{ .Values.zitadel.patSecretName | default (printf "zitadel-instance-pat-%s" (include "beabee.zitadelInstanceName" .)) }}
 {{- end }}
 
 {{/*

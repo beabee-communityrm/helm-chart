@@ -1,32 +1,38 @@
 {{- if .Values.zitadel.enabled }}
-# The ZITADEL org-provisioning script, run by the post-install/upgrade hook
+# The ZITADEL provisioning script, run by the post-install/upgrade hook
 # (zitadel-job.yaml).
 #
 # WHAT THIS DOES
 #
-# All tenants share one ZITADEL instance (the IdP), but each tenant gets
-# their own *organization* in it: their own users, their own login-page
-# branding, their own OIDC client — isolated from every other tenant, the
-# way each tenant's database is isolated inside the shared Postgres
-# cluster. This script makes that organization real. After every deploy of
-# this release it ensures three things exist in ZITADEL, in order:
+# Each tenant has their own *virtual instance* in the shared ZITADEL — their
+# own users, branding, email sender and login domains, isolated the way each
+# tenant's database is isolated inside the shared Postgres cluster. The
+# instance itself (and its domains, and the credential this script uses) is
+# managed by the central reconciler in the zitadel namespace, driven by the
+# annotations on this chart's login-domain Ingress. This script provisions
+# the INSIDE of the instance after every deploy:
 #
-#   1. the tenant's organization        (named after the release by default)
-#   2. a project inside it              (ZITADEL's grouping for apps)
-#   3. an OIDC client in that project   (what the app will authenticate
+#   1. resolve the instance's default organization (created with the
+#      instance; users will live there)
+#   2. ensure a project                  (ZITADEL's grouping for apps)
+#   3. ensure an OIDC client in it       (what the app authenticates
 #      against: a "public" client using PKCE, so there is no client secret
 #      to manage — matches how the beabee app calls it)
 #
-# Every step is search-first: if the thing already exists it is reused, so
-# re-running on each upgrade is a no-op. Nothing is ever deleted here —
-# like the tenant's database, the organization outlives the release, and
+# Steps are search-first: existing things are reused, so re-runs are no-ops.
+# Nothing is ever deleted here — the instance outlives the release, and
 # offboarding is a deliberate manual step (see README).
 #
-# Finally it writes the resulting IDs into the Kubernetes Secret
+# All API calls go to the in-cluster core URL and select THIS tenant's
+# instance via the X-Forwarded-Host header (a literal Host header would be
+# silently dropped by fetch), authenticated with the instance-admin PAT the
+# reconciler delivered — a credential valid for this instance alone.
+#
+# Finally the resulting IDs land in Secret
 # "{{ include "beabee.zitadelSecretName" . }}" in the tenant's namespace.
-# That Secret is the handover point: the app starts using ZITADEL only
-# when its env is explicitly wired to these values via secretRefs (see
-# README — provisioning alone changes nothing about how anyone logs in).
+# That Secret is the handover point: the app starts using ZITADEL only when
+# its env is explicitly wired to these values via secretRefs (see README —
+# provisioning alone changes nothing about how anyone logs in).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -38,72 +44,70 @@ data:
   bootstrap.mjs: |
     import { readFileSync } from 'node:fs';
 
-    // All inputs come from the Job spec. The one credential is the shared
-    // admin access token (PAT), mirrored into this namespace from the
-    // zitadel namespace; ISSUER is the tenant's login-domain URL, only
-    // passed through into the output Secret.
-    const API = process.env.ZITADEL_API;           // shared instance, e.g. https://auth.hive.beabee.io
+    // All inputs come from the Job spec; PAT, INSTANCE_DOMAIN and
+    // INSTANCE_ID come from the reconciler-delivered instance Secret.
+    const API = process.env.ZITADEL_API;               // in-cluster core URL
     const PAT = process.env.ZITADEL_PAT.trim();
-    const ISSUER = process.env.ISSUER;
-    const ORG_NAME = process.env.ORG_NAME;
+    const INSTANCE_DOMAIN = process.env.INSTANCE_DOMAIN; // selects our instance
+    const INSTANCE_ID = process.env.INSTANCE_ID;
+    const ISSUER = process.env.ISSUER;                 // tenant's login-domain URL
     const PROJECT_NAME = process.env.PROJECT_NAME;
     const APP_NAME = 'beabee';
     const REDIRECT_URIS = process.env.REDIRECT_URIS.split(',');
     const POST_LOGOUT_URIS = process.env.POST_LOGOUT_URIS.split(',');
-    const TARGET_SECRET = process.env.TARGET_SECRET; // empty = skip write (local testing)
+    const TARGET_SECRET = process.env.TARGET_SECRET;   // empty = skip write (local testing)
     const NAMESPACE = process.env.NAMESPACE;
 
-    // One helper for every ZITADEL call — always a POST with the PAT.
-    // ZITADEL quirk: most endpoints are instance-wide, but the
-    // "management" family acts on ONE organization, selected not by the
-    // URL but by the x-zitadel-orgid header — hence the orgId parameter.
-    async function zitadel(path, body, orgId) {
+    // One helper for every ZITADEL call. X-Forwarded-Host routes the
+    // request to OUR instance (the core honors it as a proxied service;
+    // fetch drops a literal Host header). The management API additionally
+    // takes the organization in a header.
+    async function zitadel(method, path, body, orgId) {
       const res = await fetch(`${API}${path}`, {
-        method: 'POST',
+        method,
         headers: {
           Authorization: `Bearer ${PAT}`,
           'Content-Type': 'application/json',
+          'X-Forwarded-Host': INSTANCE_DOMAIN,
+          'X-Forwarded-Proto': 'https',
           ...(orgId ? { 'x-zitadel-orgid': orgId } : {}),
         },
-        body: JSON.stringify(body),
+        body: body ? JSON.stringify(body) : undefined,
       });
       const text = await res.text();
       if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}: ${text}`);
       return JSON.parse(text);
     }
 
-    // The three ensure steps, all the same shape: exact-name search first,
-    // create only when nothing matched, return the id either way.
-    async function ensureOrg() {
-      const found = await zitadel('/v2/organizations/_search', {
-        queries: [{ nameQuery: { name: ORG_NAME, method: 'TEXT_QUERY_METHOD_EQUALS' } }],
-      });
-      if (found.result?.[0]?.id) return { id: found.result[0].id, existed: true };
-      const created = await zitadel('/v2/organizations', { name: ORG_NAME });
-      return { id: created.organizationId ?? created.id, existed: false };
+    // The instance's default organization — created with the instance; the
+    // PAT's machine user lives there, so orgs/me resolves it.
+    async function defaultOrg() {
+      const { org } = await zitadel('GET', '/management/v1/orgs/me');
+      return { id: org.id, name: org.name };
     }
 
+    // Exact-name search first, create only when nothing matched.
     async function ensureProject(orgId) {
-      const found = await zitadel('/management/v1/projects/_search', {
+      const found = await zitadel('POST', '/management/v1/projects/_search', {
         queries: [{ nameQuery: { name: PROJECT_NAME, method: 'TEXT_QUERY_METHOD_EQUALS' } }],
       }, orgId);
       if (found.result?.[0]?.id) return { id: found.result[0].id, existed: true };
-      const created = await zitadel('/management/v1/projects', { name: PROJECT_NAME }, orgId);
+      const created = await zitadel('POST', '/management/v1/projects', { name: PROJECT_NAME }, orgId);
       return { id: created.id, existed: false };
     }
 
     async function ensureApp(orgId, projectId) {
-      const found = await zitadel(`/management/v1/projects/${projectId}/apps/_search`, {
+      const found = await zitadel('POST', `/management/v1/projects/${projectId}/apps/_search`, {
         queries: [{ nameQuery: { name: APP_NAME, method: 'TEXT_QUERY_METHOD_EQUALS' } }],
       }, orgId);
       const existing = found.result?.[0]?.oidcConfig?.clientId;
       if (existing) return { clientId: existing, existed: true };
       // A "web" client with PKCE and no client secret (authMethod NONE):
-      // there is nothing confidential to rotate, and the beabee app uses
-      // no client auth when BEABEE_OIDC_CLIENTSECRET is empty. The
-      // redirect URIs are fixed at creation; changing hive.domain later
-      // means editing the app in the ZITADEL Console (create-only here).
-      const created = await zitadel(`/management/v1/projects/${projectId}/apps/oidc`, {
+      // nothing confidential to rotate, and the beabee app uses no client
+      // auth when BEABEE_OIDC_CLIENTSECRET is empty. Redirect URIs are
+      // fixed at creation; changing hive.domain later means editing the
+      // app in the ZITADEL Console (create-only here).
+      const created = await zitadel('POST', `/management/v1/projects/${projectId}/apps/oidc`, {
         name: APP_NAME,
         redirectUris: REDIRECT_URIS,
         postLogoutRedirectUris: POST_LOGOUT_URIS,
@@ -119,8 +123,7 @@ data:
     // Persist the results as a Secret in the tenant's namespace, talking to
     // Kubernetes' REST API with the pod's own ServiceAccount token (the
     // Role in zitadel-rbac.yaml allows writing exactly this one Secret).
-    // Create if missing, replace if present; NODE_EXTRA_CA_CERTS on the Job
-    // makes fetch trust the cluster's internal certificate authority.
+    // NODE_EXTRA_CA_CERTS on the Job makes fetch trust the cluster CA.
     async function writeSecret(stringData) {
       const sa = '/var/run/secrets/kubernetes.io/serviceaccount';
       const token = readFileSync(`${sa}/token`, 'utf8');
@@ -150,22 +153,23 @@ data:
 
     // ---- main flow -------------------------------------------------------
 
-    const org = await ensureOrg();
+    const org = await defaultOrg();
     const project = await ensureProject(org.id);
     const app = await ensureApp(org.id, project.id);
-    console.log(`org ${org.id} (${org.existed ? 'exists' : 'CREATED'}), ` +
+    console.log(`instance ${INSTANCE_ID}, org ${org.id} (${org.name}), ` +
       `project ${project.id} (${project.existed ? 'exists' : 'CREATED'}), ` +
       `app ${app.clientId} (${app.existed ? 'exists' : 'CREATED'})`);
 
     const stringData = {
       ISSUER,
+      INSTANCE_ID,
       ORG_ID: org.id,
       PROJECT_ID: project.id,
       CLIENT_ID: app.clientId,
-      // The ready-made scope string for BEABEE_OIDC_SCOPES. The last entry
-      // is the multi-tenancy linchpin: it pins the login to THIS org, which
-      // selects the tenant's user pool and branding on the shared instance.
-      OIDC_SCOPES: `openid profile email urn:zitadel:iam:org:id:${org.id}`,
+      // Instance isolation replaces the org-model's org-pinning scope: the
+      // tenant's issuer only ever serves their instance, so plain OIDC
+      // scopes suffice for BEABEE_OIDC_SCOPES.
+      OIDC_SCOPES: 'openid profile email',
     };
     if (!TARGET_SECRET) {
       console.log('TARGET_SECRET unset - skipping secret write:', JSON.stringify(stringData));
