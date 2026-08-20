@@ -110,8 +110,11 @@ router:
       cpu: "2"
       memory: "128Mi"
 
+# Run DB migrations (`typeorm migration:run`) as a pre-upgrade/pre-install
+# hook Job before the deployments roll. A failed migration fails the upgrade
+# and leaves the running pods untouched.
 migration:
-  enabled: false
+  enabled: true
 
 
 cnpg:
