@@ -52,36 +52,37 @@ ingress:
 #   mid  (observed api peak ~250Mi):  requests 192Mi, limit 384Mi
 #   high (api memory leak, see below): requests 256Mi, limit 768Mi
 #
-# NB: beabee-api-app v0.51.0 leaks memory roughly in proportion to traffic
-# (~25MB/h on the busiest tenant, resets on restart). The low-bracket 256Mi
-# api limit deliberately converts that leak into a periodic container restart
-# instead of days of climbing node pressure; expect occasional restarts on
-# leak-affected tenants until it is fixed upstream.
+# NB: since v0.51.2 the backend images preload jemalloc (fixes the api-app
+# native-memory leak). jemalloc runs a HIGHER steady-state RSS than glibc
+# (~+50-70Mi per backend container, observed fleet-wide at rollout) in
+# exchange for bounded growth -- the api/webhook limits below are sized for
+# jemalloc-era baselines, not the original glibc-era measurements.
 # ---------------------------------------------------------------------------
 apiApp:
   enabled: true
   replicaCount: 1
-  # Fleet steady state 92Mi median / 179Mi max; peak 158Mi median, 177Mi max
-  # outside the leak-affected tenants (which override, see header).
+  # glibc-era steady state 92Mi median / peak 177Mi max; jemalloc lifts the
+  # fleet to 151Mi median / 211Mi max (first-hour, 2026-08-26).
   resources:
     requests:
       cpu: "25m"
       memory: "128Mi"
     limits:
       cpu: "2"
-      memory: "256Mi"
+      memory: "320Mi"
 
 webhookApp:
   enabled: true
   replicaCount: 1
-  # Fleet steady state 64Mi median; peak 115Mi median / 141Mi max.
+  # glibc-era steady state 64Mi median / peak 141Mi max; jemalloc lifts the
+  # fleet to 126Mi median / 164Mi max (first-hour, 2026-08-26).
   resources:
     requests:
       cpu: "10m"
       memory: "96Mi"
     limits:
       cpu: "2"
-      memory: "192Mi"
+      memory: "256Mi"
 
 legacyApp:
   enabled: true
