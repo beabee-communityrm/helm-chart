@@ -35,7 +35,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "beabee.selectorLabels" (dict "component" "zitadel-bootstrap") | nindent 8 }}
+        {{- include "beabee.podLabels" (dict "component" "zitadel-bootstrap") | nindent 8 }}
     spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "beabee.fullname" . }}-zitadel-bootstrap

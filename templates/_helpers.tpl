@@ -20,10 +20,33 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 
 {{/*
 Selector labels for a component. Call with dict "component" "xxx"
+
+These land in spec.selector.matchLabels, which Kubernetes treats as immutable:
+changing this define forces a delete-and-recreate of every tenant's workloads.
+Add pod labels to beabee.podLabels instead.
 */}}
 {{- define "beabee.selectorLabels" -}}
 app: beabee
 component: {{ .component }}
+{{- end }}
+
+{{/*
+Pod labels for a component. Call with dict "component" "xxx"
+
+The selector labels plus anything that should be on the pod but must stay out of
+the (immutable) selector. Always a superset of beabee.selectorLabels, so pods
+still match their Deployment.
+
+app.kubernetes.io/name is what observability tooling keys on to group a workload:
+Grafana Alloy maps it onto the `app` log label, and Loki's automatic service-name
+discovery reads that before falling back to the container name. Without it beabee
+logs were split into six services -- api-app, webhook-app, cron-app, legacy-app,
+frontend, router -- rather than grouping under one "beabee", with the tenant in
+the namespace label.
+*/}}
+{{- define "beabee.podLabels" -}}
+{{ include "beabee.selectorLabels" . }}
+app.kubernetes.io/name: beabee
 {{- end }}
 
 {{/*
