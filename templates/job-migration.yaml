@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "beabee.selectorLabels" (dict "component" "migration") | nindent 8 }}
+        {{- include "beabee.podLabels" (dict "component" "migration") | nindent 8 }}
     spec:
       restartPolicy: OnFailure
       containers:

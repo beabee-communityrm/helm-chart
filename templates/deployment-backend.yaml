@@ -28,7 +28,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "beabee.selectorLabels" (dict "component" $b.name) | nindent 8 }}
+        {{- include "beabee.podLabels" (dict "component" $b.name) | nindent 8 }}
     spec:
       containers:
         - name: {{ $b.name }}
