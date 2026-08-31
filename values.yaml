@@ -41,60 +41,57 @@ ingress:
 # ---------------------------------------------------------------------------
 # Component settings
 #
-# Resource defaults are the LOW-usage bracket, sized from 7 days of production
-# metrics across 18 migrated tenants (2026-08-25): memory requests ~1.3-1.5x
-# median steady state, memory limits ~1.5x the fleet-wide observed peak. CPU
-# requests reflect actual usage (a whole tenant averages ~20m); the cpu limit
-# stays high because CPU is compressible and throttling helps nobody.
+# Resource defaults sized from settled jemalloc-era production metrics: 4+ days
+# across 20 tenants, 2026-08-27..31, after v0.51.2 introduced jemalloc (which
+# cured the api-app native-memory leak but settled steady-state RSS ~+80Mi per
+# backend container above the old glibc numbers). Method: memory requests
+# ~1.2x median steady state, memory limits ~1.4-1.5x the fleet-wide observed
+# peak. CPU requests reflect actual usage (a whole tenant averages ~20m); the
+# cpu limit stays high because CPU is compressible and throttling helps nobody.
 #
-# Higher-usage tenants override apiApp.resources in their HelmRelease values
-# (deep-merged over these defaults) rather than raising the fleet default:
-#   mid  (observed api peak ~250Mi):  requests 192Mi, limit 384Mi
-#   high (api memory leak, see below): requests 256Mi, limit 768Mi
-#
-# NB: since v0.51.2 the backend images preload jemalloc (fixes the api-app
-# native-memory leak). jemalloc runs a HIGHER steady-state RSS than glibc
-# (~+50-70Mi per backend container, observed fleet-wide at rollout) in
-# exchange for bounded growth -- the api/webhook limits below are sized for
-# jemalloc-era baselines, not the original glibc-era measurements.
+# One override bracket remains: heavy CrowdNewsroom/callout tenants (guest
+# image uploads keep the api-app's working set genuinely higher -- bounded
+# sawtooth to ~455Mi, released between bursts). Those tenants set
+# apiApp.resources requests 256Mi / limit 640Mi in their HelmRelease values
+# (deep-merged over these defaults).
 # ---------------------------------------------------------------------------
 apiApp:
   enabled: true
   replicaCount: 1
-  # glibc-era steady state 92Mi median / peak 177Mi max; jemalloc lifts the
-  # fleet to 151Mi median / 211Mi max (first-hour, 2026-08-26).
+  # Jemalloc-era steady state 171Mi median / 330Mi max; peak 190Mi median,
+  # 266Mi max outside the callout tenants (which override, see header).
   resources:
     requests:
       cpu: "25m"
-      memory: "128Mi"
+      memory: "192Mi"
     limits:
       cpu: "2"
-      memory: "320Mi"
+      memory: "384Mi"
 
 webhookApp:
   enabled: true
   replicaCount: 1
-  # glibc-era steady state 64Mi median / peak 141Mi max; jemalloc lifts the
-  # fleet to 126Mi median / 164Mi max (first-hour, 2026-08-26).
+  # Jemalloc-era steady state 136Mi median; peak 143Mi median / 233Mi max.
   resources:
     requests:
       cpu: "10m"
-      memory: "96Mi"
+      memory: "160Mi"
     limits:
       cpu: "2"
-      memory: "256Mi"
+      memory: "384Mi"
 
 legacyApp:
   enabled: true
   replicaCount: 1
-  # Fleet steady state 84Mi median; peak 171Mi median / 234Mi max.
+  # Jemalloc-era steady state 169Mi median; peak 231Mi median / 317Mi max --
+  # the fleet max sat at 99% of the previous 320Mi limit.
   resources:
     requests:
       cpu: "25m"
-      memory: "128Mi"
+      memory: "192Mi"
     limits:
       cpu: "2"
-      memory: "320Mi"
+      memory: "512Mi"
 
 # Idle daemon is ~11Mi, but each triggered job spawns a full backend-cli boot
 # (same code as the app tier) in this cgroup, and overlapping hourly jobs stack.
