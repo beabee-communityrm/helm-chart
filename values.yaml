@@ -41,25 +41,25 @@ ingress:
 # ---------------------------------------------------------------------------
 # Component settings
 #
-# Resource defaults sized from settled jemalloc-era production metrics: 4+ days
-# across 20 tenants, 2026-08-27..31, after v0.51.2 introduced jemalloc (which
-# cured the api-app native-memory leak but settled steady-state RSS ~+80Mi per
-# backend container above the old glibc numbers). Method: memory requests
-# ~1.2x median steady state, memory limits ~1.4-1.5x the fleet-wide observed
-# peak. CPU requests reflect actual usage (a whole tenant averages ~20m); the
-# cpu limit stays high because CPU is compressible and throttling helps nobody.
+# Resource defaults measured 2026-08-28..09-07 across 45 tenants. The window
+# starts after the v0.51.2 jemalloc step (2026-08-26), which raised
+# steady-state RSS fleet-wide; earlier data biases requests low.
 #
-# One override bracket remains: heavy CrowdNewsroom/callout tenants (guest
-# image uploads keep the api-app's working set genuinely higher -- bounded
-# sawtooth to ~455Mi, released between bursts). Those tenants set
-# apiApp.resources requests 256Mi / limit 640Mi in their HelmRelease values
-# (deep-merged over these defaults).
+# Requests come from container_memory_rss at the p95 of per-pod medians: a
+# request is a steady-state reservation, and staying under it keeps a pod off
+# the kubelet's eviction shortlist. Limits come from
+# container_memory_working_set_bytes at ~1.2-1.5x the fleet peak, because the
+# cgroup v2 limit is enforced against memory.current, which includes page
+# cache -- sizing a limit from RSS understates it. CPU is unchanged.
+#
+# Tenants whose api-app runs hotter than these defaults override
+# apiApp.resources in their own HelmRelease values, deep-merged over this file.
 # ---------------------------------------------------------------------------
 apiApp:
   enabled: true
   replicaCount: 1
-  # Jemalloc-era steady state 171Mi median / 330Mi max; peak 190Mi median,
-  # 266Mi max outside the callout tenants (which override, see header).
+  # median RSS 155Mi, p95 of per-pod medians 195Mi, WS peak 309Mi, excluding
+  # the tenants that override.
   resources:
     requests:
       cpu: "25m"
@@ -71,11 +71,12 @@ apiApp:
 webhookApp:
   enabled: true
   replicaCount: 1
-  # Jemalloc-era steady state 136Mi median; peak 143Mi median / 233Mi max.
+  # median RSS 130Mi, p95 142Mi, WS peak 260Mi. Request 160 -> 144Mi: 160Mi
+  # was above every RSS sample in the window.
   resources:
     requests:
       cpu: "10m"
-      memory: "160Mi"
+      memory: "144Mi"
     limits:
       cpu: "2"
       memory: "384Mi"
@@ -83,38 +84,40 @@ webhookApp:
 legacyApp:
   enabled: true
   replicaCount: 1
-  # Jemalloc-era steady state 169Mi median; peak 231Mi median / 317Mi max --
-  # the fleet max sat at 99% of the previous 320Mi limit.
+  # median RSS 170Mi, p95 182Mi, WS peak 317Mi. Limit 512 -> 448Mi (1.41x the
+  # WS peak); 512Mi came from reading that 317Mi WS peak as if it were RSS.
   resources:
     requests:
       cpu: "25m"
       memory: "192Mi"
     limits:
       cpu: "2"
-      memory: "512Mi"
+      memory: "448Mi"
 
-# Idle daemon is ~11Mi, but each triggered job spawns a full backend-cli boot
-# (same code as the app tier) in this cgroup, and overlapping hourly jobs stack.
-# Measured: idle ~20Mi, but job peaks reach 429Mi median / 481Mi max on EVERY
-# tenant -- the old 512Mi limit left 6% headroom, and an OOMKill here aborts a
-# job mid-run (unlike the stateless app tiers, where a restart is harmless).
-# The limit is therefore the one value sized UP; the request stays low because
-# the peaks are seconds-long and unsynchronized across tenants.
+# Bimodal: the daemon idles at 27Mi median RSS, but each triggered job boots a
+# full backend-cli in this cgroup and peaks at 605Mi RSS / 632Mi WS.
+#
+# request 128 -> 80Mi (p95 of per-pod medians is 53Mi). Reserving the burst
+# fleet-wide would hold 27GB for a total that peaks at 3275Mi, and the bursts
+# are unsynchronized -- at most 6 of 45 pods above 200Mi at once over 10 days.
+# limit 640 -> 768Mi, the one value sized up: WS peak 632Mi left 8Mi of
+# headroom, and an OOMKill here aborts a job mid-run rather than restarting.
 cronApp:
   enabled: true
   replicaCount: 1
   resources:
     requests:
       cpu: "25m"
-      memory: "128Mi"
+      memory: "80Mi"
     limits:
       cpu: "2"
-      memory: "640Mi"
+      memory: "768Mi"
 
 frontend:
   enabled: true
   replicaCount: 1
-  # Fleet steady state 6Mi median; peak 13Mi median / 20Mi max.
+  # median RSS 4Mi, RSS peak 7Mi, WS peak 35Mi -- nginx serves the built assets
+  # from page cache. Unchanged; sizing this one from RSS is the trap.
   resources:
     requests:
       cpu: "5m"
@@ -126,7 +129,7 @@ frontend:
 router:
   enabled: true
   replicaCount: 1
-  # Fleet steady state 5Mi median; peak 8Mi median / 11Mi max.
+  # median RSS 7Mi, RSS peak 11Mi, WS peak 17Mi. Unchanged.
   resources:
     requests:
       cpu: "5m"
