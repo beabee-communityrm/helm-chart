@@ -42,11 +42,13 @@ chart declares, controllers converge).
   kubectl get secret zitadel-<release>-admin -n <ns> -o jsonpath='{.data.password}' | base64 -d
   ```
 
-  Log in at `https://<login-domain>/ui/console`; the first login forces a
-  password change. The Secret is **create-once** — the Job never updates
-  it, and it does not follow that change. To rotate: delete the Secret and
-  redeploy. The next run resets the user's password (even if a human
-  changed it in the meantime) and recreates the Secret. If the user was
+  Log in at `https://<login-domain>/ui/console`. The password is not
+  forced to change on first login: the Secret is the shared credential for
+  devs and support staff, so **do not change the password in the Console**
+  — the Secret would not follow. The Secret is **create-once**; the Job
+  never updates it. To rotate: delete the Secret and redeploy. The next
+  run resets the user's password (even if someone changed it in the
+  Console in the meantime) and recreates the Secret. If the user was
   deleted in ZITADEL instead, the next run recreates it with the password
   already in the Secret.
 

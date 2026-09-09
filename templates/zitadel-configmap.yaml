@@ -182,7 +182,8 @@ data:
 
     // Converge user and stored password: no user -> create it with the
     // stored password (or a fresh one); user but no Secret -> rotate;
-    // both -> touch nothing. Then make sure it holds IAM_OWNER.
+    // both -> touch nothing. Then make sure it holds IAM_OWNER. No forced
+    // change at first login: the Secret IS the shared support credential.
     async function ensureAdminUser(org, secret) {
       let userId = await findUser(ADMIN_USERNAME);
       let password = secret?.password;
@@ -194,13 +195,13 @@ data:
           organization: { orgId: org.id },
           profile: { givenName: 'Admin', familyName: org.name },
           email: { email: ADMIN_EMAIL, isVerified: true },
-          password: { password, changeRequired: true },
+          password: { password, changeRequired: false },
         });
         userId = created.userId;
         state = 'CREATED';
       } else if (!secret) {
         password = generatePassword();
-        await zitadel('POST', `/v2/users/${userId}/password`, { newPassword: { password, changeRequired: true } });
+        await zitadel('POST', `/v2/users/${userId}/password`, { newPassword: { password, changeRequired: false } });
         state = 'password ROTATED';
       }
       const members = await zitadel('POST', '/admin/v1/members/_search', { queries: [{ userIdQuery: { userId } }] });
