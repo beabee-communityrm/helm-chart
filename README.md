@@ -6,6 +6,61 @@ by Flux from `main`; bump `version` in `Chart.yaml` for any change to roll
 out (`update.sh` does this for app releases). Tenant configuration lives in
 each tenant's HelmRelease values plus the SOPS secret `env-<release>`.
 
+## Running backend CLI commands (`cli.*`)
+
+The Kubernetes replacement for `docker compose exec api_app yarn backend-cli
+...`. `kubectl exec` into the api-app pod does not work here: backend-cli
+boots a full beabee application rather than talking to the API, so inside
+api-app's cgroup two copies of the app compete for one memory limit and the
+command (or the pod) gets OOM-killed. Instead the chart renders a
+**suspended CronJob `<release>-cli`** — it never fires, it is only a template
+with the tenant's image tag, env (the same as the backends and the migration
+Job: env secret, `secretRefs`, `zitadel.state` env) and its own resources
+(`cli.resources`, default 512Mi request / 1Gi limit). Stamp a Job from it
+with your command. `kubectl create job --from=cronjob/... -- <cmd>` alone is
+refused by kubectl ("cannot specify --from and command"), so render the Job
+client-side, set the command, and create it:
+
+```sh
+NS=beabee-<id>
+kubectl -n $NS create job cli-$(date +%s) --from=cronjob/$NS-cli --dry-run=client -o json \
+  | jq '.spec.template.spec.containers[0].command = ["yarn","backend-cli","user","list"]' \
+  | kubectl -n $NS create -f -
+kubectl -n $NS logs -f job/cli-<ts>
+```
+
+The array is exactly what you typed after `docker compose exec api_app`
+before. The operator runbook (hive-kubernetes-prod `docs/support.md`) is the
+place for a wrapper around this; the chart only ships the template.
+
+**Interactive commands** (`setup admin`, `setup support-email`,
+`setup payment-methods`, `user delete` without `-y`) prompt on a TTY and
+would hang in a Job. Start a throwaway pod from the same template and exec
+into it — the old `exec` workflow, in a pod with the CLI's own limit:
+
+```sh
+kubectl -n $NS create job cli-shell --from=cronjob/$NS-cli --dry-run=client -o json \
+  | jq '.spec.template.spec.containers[0].command = ["sleep","3600"]' \
+  | kubectl -n $NS create -f -
+kubectl -n $NS exec -it job/cli-shell -- bash
+node@cli-shell-...:/opt/apps/backend$ yarn backend-cli setup admin
+kubectl -n $NS delete job cli-shell
+```
+
+Notes:
+
+- Job names must be unique in the namespace, hence the timestamp. Pods carry
+  `component=cli` for Loki. `backoffLimit` is 0: a failing command is not
+  retried, the Job shows `Failed` and its pod is kept for `kubectl logs` /
+  `describe`. Finished Jobs are deleted after `cli.ttlSecondsAfterFinished`
+  (default one day).
+- Runs use the tenant's deployed image (`image.tag` / `appVersion`), so the
+  CLI always matches the running backends. The command replaces the image's
+  `tini` entrypoint, which is fine for a one-shot process.
+- Unmodified (plain `kubectl create job --from`), the template runs
+  `yarn backend-cli --help`: a smoke test of image and env.
+- `cli.enabled: false` removes the template (nothing else depends on it).
+
 ## ZITADEL instance provisioning (`zitadel.*`, opt-in)
 
 Each client gets their own **virtual instance** in the shared ZITADEL

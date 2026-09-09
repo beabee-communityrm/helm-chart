@@ -1,0 +1,75 @@
+{{- if .Values.cli.enabled }}
+# One-off backend-cli runs (`yarn backend-cli <command>`, the Kubernetes
+# replacement for `docker compose exec api_app yarn backend-cli ...`).
+#
+# This CronJob never fires — it is suspended and exists only as a template
+# to stamp Jobs from. `kubectl create job --from` copies its jobTemplate but
+# refuses a command override, so render client-side, set the command, create:
+#
+#   kubectl -n <ns> create job cli-<ts> --from=cronjob/<release>-cli \
+#       --dry-run=client -o json \
+#     | jq '.spec.template.spec.containers[0].command = ["yarn","backend-cli",...]' \
+#     | kubectl -n <ns> create -f -
+#
+# Everything else (image tag, env, resources) is inherited, so a run sees
+# exactly the env the backends and the migration Job see. Keep `args` unset
+# here: only `command` is replaced, so any args would trail the command.
+#
+# Why not kubectl exec into api-app: backend-cli boots a full beabee
+# application (not a thin API client), so running it inside api-app's
+# cgroup needs room for two copies of the app and trips its memory limit.
+# A separate pod gets its own cli.resources. See README.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "beabee.fullname" . }}-cli
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: cli
+spec:
+  # Never fires (suspend). The schedule is required syntax; if someone
+  # un-suspends it by mistake it prints --help once a year.
+  schedule: "0 0 1 1 *"
+  suspend: true
+  concurrencyPolicy: Allow
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "beabee.labels" . | nindent 8 }}
+        component: cli
+    spec:
+      # One-off ops commands must not be retried by the Job controller: a
+      # half-applied command re-running is worse than a visible failure.
+      backoffLimit: 0
+      # Finished Jobs (and their logs) linger this long, then are GC'd.
+      ttlSecondsAfterFinished: {{ .Values.cli.ttlSecondsAfterFinished }}
+      template:
+        metadata:
+          labels:
+            {{- include "beabee.podLabels" (dict "component" "cli") | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: cli
+              # The api-app image ships backend-cli (WORKDIR /opt/apps/backend,
+              # from where `yarn backend-cli` resolves the root script, as the
+              # cron image's crontab does).
+              image: beabee/beabee-api-app:{{ .Values.image.tag | default .Chart.AppVersion }}
+              # Placeholder — overridden per run. Unmodified it is a smoke
+              # test: prints the command list and exits 0.
+              command: ['yarn', 'backend-cli', '--help']
+              envFrom:
+                - secretRef:
+                    name: {{ include "beabee.secretName" . }}
+              env:
+                {{- include "beabee.hiveDerivedEnv" . | nindent 16 }}
+                {{- include "beabee.hiveServiceEnv" . | nindent 16 }}
+                {{- with (include "beabee.secretRefEnv" .) }}
+                {{- . | nindent 16 }}
+                {{- end }}
+                {{- with (include "beabee.zitadelAppEnv" .) }}
+                {{- . | nindent 16 }}
+                {{- end }}
+              resources:
+                {{- toYaml .Values.cli.resources | nindent 16 }}
+{{- end }}
