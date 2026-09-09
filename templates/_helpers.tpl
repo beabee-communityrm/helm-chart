@@ -111,7 +111,7 @@ Cookie domain: hive.domain with any port stripped — cookies can't carry a port
 
 {{/*
 Name of the Secret the ZITADEL bootstrap hook writes the provisioned IDs to
-(ISSUER, INSTANCE_ID, ORG_ID, PROJECT_ID, CLIENT_ID, OIDC_SCOPES).
+(ISSUER, INSTANCE_ID, PROJECT_ID, CLIENT_ID, OIDC_SCOPES).
 */}}
 {{- define "beabee.zitadelSecretName" -}}
 zitadel-{{ include "beabee.fullname" . }}
