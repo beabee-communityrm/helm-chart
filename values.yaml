@@ -144,6 +144,30 @@ router:
 migration:
   enabled: true
 
+# One-off `yarn backend-cli` runs: a suspended CronJob (never fires) that is
+# the template one-off Jobs are stamped from with `kubectl create job --from`
+# (see README for the exact invocation). backend-cli boots a full beabee
+# application, so it cannot run inside api-app's memory limit; this gives it
+# a pod of its own with the same image and env as the backends.
+#
+# Sizing: the cron-app's triggered jobs are the same backend-cli through the
+# same yarn wrapper and peak at 605Mi RSS / 632Mi WS (see cronApp). Unlike a
+# daemon, a one-off pod's request should cover its actual peak so the
+# scheduler places it on a node with room; the limit leaves headroom for the
+# heavier commands cron never runs (database export, migrate-uploads).
+cli:
+  enabled: true
+  # How long finished Jobs (and their logs) stay before Kubernetes deletes
+  # them. A day: long enough to read the output the next morning.
+  ttlSecondsAfterFinished: 86400
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "2"
+      memory: "1Gi"
+
 
 cnpg:
   enabled: true
