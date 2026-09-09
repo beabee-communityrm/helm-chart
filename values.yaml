@@ -161,7 +161,9 @@ cnpg:
 # declares the tenant's virtual instance and vanity login domain (the
 # central reconciler there creates the instance and delivers its admin PAT),
 # and a post-install/upgrade hook ensures project and OIDC client inside the
-# instance and writes the resulting IDs to Secret "zitadel-<release>". Like
+# instance, plus a human "admin" user (IAM_OWNER), and writes the resulting
+# IDs to Secret "zitadel-<release>" and the admin's credentials to
+# "zitadel-<release>-admin". Like
 # the CNPG Database, the instance survives helm uninstall — offboarding is a
 # manual runbook step.
 #
@@ -196,6 +198,9 @@ zitadel:
   # Vanity login domain for this tenant; defaults to auth.<hive.domain>.
   # Needs a DNS record pointing at the shared ingress LB.
   loginDomain: ""
+  # Email for the human admin user (ZITADEL requires one); defaults to
+  # admin@<loginDomain>. It is created as verified, so no mail is ever sent.
+  adminEmail: ""
   # cert-manager issuer for the login-domain certificate.
   clusterIssuer: letsencrypt-prod
   projectName: beabee

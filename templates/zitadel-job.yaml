@@ -75,6 +75,10 @@ spec:
               value: {{ join "," $postLogouts | quote }}
             - name: TARGET_SECRET
               value: {{ include "beabee.zitadelSecretName" . }}
+            - name: ADMIN_SECRET
+              value: {{ include "beabee.zitadelAdminSecretName" . }}
+            - name: ADMIN_EMAIL
+              value: {{ .Values.zitadel.adminEmail | default (printf "admin@%s" (include "beabee.zitadelLoginDomain" .)) | quote }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:

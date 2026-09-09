@@ -163,6 +163,15 @@ zitadel-{{ include "beabee.fullname" . }}
 {{- end }}
 
 {{/*
+Name of the create-once Secret holding the human admin user's credentials
+(username, password, email, console URL). Deleting it rotates the password
+on the next deploy.
+*/}}
+{{- define "beabee.zitadelAdminSecretName" -}}
+zitadel-{{ include "beabee.fullname" . }}-admin
+{{- end }}
+
+{{/*
 The tenant's ZITADEL virtual-instance name — zitadel.instanceName, or the
 release name.
 */}}
