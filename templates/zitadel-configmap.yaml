@@ -19,10 +19,15 @@
 #      against: a "public" client using PKCE, so there is no client secret
 #      to manage — matches how the beabee app calls it), and keep its
 #      redirect / post-logout URIs in sync with hive.domain
+#   4. ensure a human "admin" user with IAM_OWNER on the instance — the
+#      PAT's machine user cannot log in to the Console, this one can. Its
+#      generated password lands in the create-once Secret
+#      "{{ include "beabee.zitadelAdminSecretName" . }}".
 #
 # Steps are search-first: existing things are reused, so re-runs are no-ops
-# (the only write on re-run is the client's URI list, and only when it
-# differs from what the chart renders).
+# (the only writes on re-run are the client's URI list, and only when it
+# differs from what the chart renders, and the admin password, only when
+# its Secret is missing — deleting that Secret is the rotation switch).
 # Nothing is ever deleted here — the instance outlives the release, and
 # offboarding is a deliberate manual step (see README).
 #
@@ -46,6 +51,7 @@ metadata:
 data:
   bootstrap.mjs: |
     import { readFileSync } from 'node:fs';
+    import { randomInt } from 'node:crypto';
 
     // All inputs come from the Job spec; PAT, INSTANCE_DOMAIN and
     // INSTANCE_ID come from the reconciler-delivered instance Secret.
@@ -59,6 +65,9 @@ data:
     const REDIRECT_URIS = process.env.REDIRECT_URIS.split(',');
     const POST_LOGOUT_URIS = process.env.POST_LOGOUT_URIS.split(',');
     const TARGET_SECRET = process.env.TARGET_SECRET;   // empty = skip write (local testing)
+    const ADMIN_SECRET = process.env.ADMIN_SECRET;
+    const ADMIN_USERNAME = 'admin';
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
     const NAMESPACE = process.env.NAMESPACE;
 
     // One helper for every ZITADEL call. X-Forwarded-Host routes the
@@ -148,33 +157,105 @@ data:
       return { clientId: created.clientId, state: 'CREATED' };
     }
 
-    // Persist the results as a Secret in the tenant's namespace, talking to
-    // Kubernetes' REST API with the pod's own ServiceAccount token (the
-    // Role in zitadel-rbac.yaml allows writing exactly this one Secret).
-    // NODE_EXTRA_CA_CERTS on the Job makes fetch trust the cluster CA.
-    async function writeSecret(stringData) {
-      const sa = '/var/run/secrets/kubernetes.io/serviceaccount';
-      const token = readFileSync(`${sa}/token`, 'utf8');
-      const url = `https://kubernetes.default.svc/api/v1/namespaces/${NAMESPACE}/secrets`;
-      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-      const body = {
-        apiVersion: 'v1',
-        kind: 'Secret',
-        metadata: { name: TARGET_SECRET, namespace: NAMESPACE },
-        type: 'Opaque',
-        stringData,
-      };
-      const existing = await fetch(`${url}/${TARGET_SECRET}`, { headers });
-      if (existing.status === 404) {
-        const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`secret create -> HTTP ${res.status}: ${await res.text()}`);
-        return 'created';
+    // ~24 chars with at least one of each class ZITADEL's default complexity
+    // policy demands (upper, lower, digit, symbol — any non-alphanumeric).
+    // Ambiguous glyphs (0/O, 1/l/I) are left out; it gets typed once.
+    function generatePassword() {
+      const classes = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789', '!#$%&*+-=?@_~'];
+      const pick = (chars) => chars[randomInt(chars.length)];
+      const all = classes.join('');
+      const out = [...classes.map(pick), ...Array.from({ length: 20 }, () => pick(all))];
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = randomInt(i + 1);
+        [out[i], out[j]] = [out[j], out[i]];
       }
+      return out.join('');
+    }
+
+    // The user v2 API is instance-scoped for an IAM_OWNER PAT: no org header.
+    async function findUser(username) {
+      const found = await zitadel('POST', '/v2/users', {
+        queries: [{ userNameQuery: { userName: username, method: 'TEXT_QUERY_METHOD_EQUALS' } }],
+      });
+      return found.result?.[0]?.userId ?? null;
+    }
+
+    // Converge user and stored password: no user -> create it with the
+    // stored password (or a fresh one); user but no Secret -> rotate;
+    // both -> touch nothing. Then make sure it holds IAM_OWNER.
+    async function ensureAdminUser(org, secret) {
+      let userId = await findUser(ADMIN_USERNAME);
+      let password = secret?.password;
+      let state = 'exists';
+      if (!userId) {
+        password ??= generatePassword();
+        const created = await zitadel('POST', '/v2/users/human', {
+          username: ADMIN_USERNAME,
+          organization: { orgId: org.id },
+          profile: { givenName: 'Admin', familyName: org.name },
+          email: { email: ADMIN_EMAIL, isVerified: true },
+          password: { password, changeRequired: true },
+        });
+        userId = created.userId;
+        state = 'CREATED';
+      } else if (!secret) {
+        password = generatePassword();
+        await zitadel('POST', `/v2/users/${userId}/password`, { newPassword: { password, changeRequired: true } });
+        state = 'password ROTATED';
+      }
+      const members = await zitadel('POST', '/admin/v1/members/_search', { queries: [{ userIdQuery: { userId } }] });
+      const member = members.result?.[0];
+      let membership = 'exists';
+      if (!member) {
+        await zitadel('POST', '/admin/v1/members', { userId, roles: ['IAM_OWNER'] });
+        membership = 'GRANTED';
+      } else if (!member.roles?.includes('IAM_OWNER')) {
+        await zitadel('PUT', `/admin/v1/members/${userId}`, { roles: [...member.roles, 'IAM_OWNER'] });
+        membership = 'GRANTED';
+      }
+      return { userId, password, state, membership };
+    }
+
+    // Secrets in the tenant's namespace via Kubernetes' REST API with the
+    // pod's own ServiceAccount token; the Role in zitadel-rbac.yaml limits
+    // this to creating Secrets, rewriting the handover one and reading the
+    // admin one. NODE_EXTRA_CA_CERTS on the Job makes fetch trust the CA.
+    const SECRETS_URL = `https://kubernetes.default.svc/api/v1/namespaces/${NAMESPACE}/secrets`;
+    function k8sHeaders() {
+      const token = readFileSync('/var/run/secrets/kubernetes.io/serviceaccount/token', 'utf8');
+      return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    }
+    function secretBody(name, stringData) {
+      return { apiVersion: 'v1', kind: 'Secret', metadata: { name, namespace: NAMESPACE }, type: 'Opaque', stringData };
+    }
+
+    // Decoded data of the named Secret, or null when it doesn't exist.
+    async function readSecret(name) {
+      const res = await fetch(`${SECRETS_URL}/${name}`, { headers: k8sHeaders() });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`secret get -> HTTP ${res.status}: ${await res.text()}`);
+      const { data = {} } = await res.json();
+      return Object.fromEntries(Object.entries(data).map(([k, v]) => [k, Buffer.from(v, 'base64').toString('utf8')]));
+    }
+
+    async function createSecret(name, stringData) {
+      const res = await fetch(SECRETS_URL, { method: 'POST', headers: k8sHeaders(), body: JSON.stringify(secretBody(name, stringData)) });
+      if (!res.ok) throw new Error(`secret create -> HTTP ${res.status}: ${await res.text()}`);
+      return 'created';
+    }
+
+    // Create or fully replace: the handover Secret mirrors the instance on
+    // every run.
+    async function writeSecret(name, stringData) {
+      const headers = k8sHeaders();
+      const existing = await fetch(`${SECRETS_URL}/${name}`, { headers });
+      if (existing.status === 404) return createSecret(name, stringData);
       if (!existing.ok) throw new Error(`secret get -> HTTP ${existing.status}: ${await existing.text()}`);
       // Replacing an existing object requires echoing its resourceVersion
       // (Kubernetes' optimistic-locking guard against concurrent writes).
+      const body = secretBody(name, stringData);
       body.metadata.resourceVersion = (await existing.json()).metadata.resourceVersion;
-      const res = await fetch(`${url}/${TARGET_SECRET}`, { method: 'PUT', headers, body: JSON.stringify(body) });
+      const res = await fetch(`${SECRETS_URL}/${name}`, { method: 'PUT', headers, body: JSON.stringify(body) });
       if (!res.ok) throw new Error(`secret update -> HTTP ${res.status}: ${await res.text()}`);
       return 'updated';
     }
@@ -206,6 +287,26 @@ data:
     if (!TARGET_SECRET) {
       console.log('TARGET_SECRET unset - skipping secret write:', JSON.stringify(stringData));
     } else {
-      console.log(`secret ${TARGET_SECRET} ${await writeSecret(stringData)}`);
+      console.log(`secret ${TARGET_SECRET} ${await writeSecret(TARGET_SECRET, stringData)}`);
+    }
+
+    // The admin Secret is create-once (the Role has no update on it): an
+    // existing one is the source of truth for the password, a missing one
+    // means "rotate". Never log the password in cluster mode.
+    const adminSecret = TARGET_SECRET ? await readSecret(ADMIN_SECRET) : null;
+    const admin = await ensureAdminUser(org, adminSecret);
+    console.log(`admin user ${admin.userId} (${admin.state}), IAM_OWNER ${admin.membership}`);
+    const adminData = {
+      username: ADMIN_USERNAME,
+      password: admin.password,
+      email: ADMIN_EMAIL,
+      console: `${ISSUER}/ui/console`,
+    };
+    if (!TARGET_SECRET) {
+      console.log('TARGET_SECRET unset - skipping secret write:', JSON.stringify(adminData));
+    } else if (!adminSecret) {
+      console.log(`secret ${ADMIN_SECRET} ${await createSecret(ADMIN_SECRET, adminData)}`);
+    } else {
+      console.log(`secret ${ADMIN_SECRET} unchanged`);
     }
 {{- end }}

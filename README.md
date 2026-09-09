@@ -31,6 +31,24 @@ chart declares, controllers converge).
   post-logout URIs in sync with `hive.domain`. On first install the Job
   simply waits until the reconciler has delivered the credential (up to
   ~15 min).
+- the same Job ensures a **human admin user** (username `admin`,
+  `IAM_OWNER` on the instance, email `zitadel.adminEmail` — default
+  `admin@<login-domain>`, created as verified so no mail is sent) and
+  writes its credentials to Secret **`zitadel-<release>-admin`**
+  (`username`, `password`, `email`, `console`). The PAT's machine user
+  cannot use the Console; this one can:
+
+  ```sh
+  kubectl get secret zitadel-<release>-admin -n <ns> -o jsonpath='{.data.password}' | base64 -d
+  ```
+
+  Log in at `https://<login-domain>/ui/console`; the first login forces a
+  password change. The Secret is **create-once** — the Job never updates
+  it, and it does not follow that change. To rotate: delete the Secret and
+  redeploy. The next run resets the user's password (even if a human
+  changed it in the meantime) and recreates the Secret. If the user was
+  deleted in ZITADEL instead, the next run recreates it with the password
+  already in the Secret.
 
 **Provisioning does not change how anyone logs in.** The app keeps its
 built-in password login until `BEABEE_LOGIN_PROVIDER=oidc` is set (below).
@@ -100,9 +118,10 @@ Notes:
 
 Deliberately nothing is deleted automatically (same policy as the CNPG
 `Database`): on uninstall the login-domain Ingress goes away, but the
-virtual instance (with its users), the `zitadel-<release>` and
-`zitadel-instance-pat-<release>` Secrets and their sources in the zitadel
-namespace stay. Removing them is a manual step: delete the instance via the
-System API (this removes its domains with it) and delete the Secrets.
+virtual instance (with its users), the `zitadel-<release>`,
+`zitadel-<release>-admin` and `zitadel-instance-pat-<release>` Secrets and
+their sources in the zitadel namespace stay. Removing them is a manual
+step: delete the instance via the System API (this removes its domains with
+it) and delete the Secrets.
 A tenant migrating to self-hosted first gets an export
 (`/admin/v1/export`, `withPasswords: true` — users incl. password hashes).

@@ -1,8 +1,10 @@
 {{- if .Values.zitadel.enabled }}
 {{/*
 Identity for the ZITADEL bootstrap hook (zitadel-job.yaml): it may create
-Secrets and modify exactly one — the one it writes the provisioned IDs to.
-("create" cannot be restricted by resourceNames; get/update/patch can.)
+Secrets, modify exactly one (the one it writes the provisioned IDs to) and
+read one more (the admin credentials, create-once: never updated, so no
+update/patch). ("create" cannot be restricted by resourceNames; get/update/
+patch can.)
 */}}
 apiVersion: v1
 kind: ServiceAccount
@@ -24,6 +26,10 @@ rules:
     resources: [secrets]
     resourceNames: [{{ include "beabee.zitadelSecretName" . }}]
     verbs: [get, update, patch]
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [{{ include "beabee.zitadelAdminSecretName" . }}]
+    verbs: [get]
   - apiGroups: [""]
     resources: [secrets]
     verbs: [create]
