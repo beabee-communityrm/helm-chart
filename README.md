@@ -40,71 +40,61 @@ with `IAM_OWNER` on the virtual instance: the app uses it for user
 management now, and later `backend-cli idp setup` will write login settings,
 an Actions target and the label policy with it.
 
-### Handing the credentials to the app
+### Handing the credentials to the app: `zitadel.state`
 
 The app has two independent switches (monorepo `docs/oidc-login.md`):
 `BEABEE_IDP_PROVIDER` selects the identity provider it manages accounts in,
-`BEABEE_LOGIN_PROVIDER` selects how people log in. Their settings live under
-`BEABEE_IDP_SETTINGS_*` and `BEABEE_LOGIN_SETTINGS_*`. Wire the settings
-from the provisioned Secrets with the chart's existing `secretRefs`
-mechanism; the two `*_PROVIDER` switches go in the tenant's env secret:
+`BEABEE_LOGIN_PROVIDER` selects how people log in. Together they put a
+tenant in exactly one of three states. The chart renders the matching env
+into every backend and the migration Job from the provisioned Secrets —
+you only set `zitadel.state`:
 
-```yaml
-secretRefs:
-  # IdP: account provisioning/linking against the tenant's instance — the
-  # PAT is instance-scoped, it cannot touch other tenants. The virtual
-  # instance's API is its issuer URL.
-  BEABEE_IDP_SETTINGS_URL: { name: zitadel-<release>, key: ISSUER }
-  BEABEE_IDP_SETTINGS_PAT: { name: zitadel-instance-pat-<release>, key: pat }
+| `zitadel.state`       | State          | Env rendered by the chart                                                                                |
+| --------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
+| `standalone` (default) | Standalone     | nothing — password login, instance unused                                                                 |
+| `idp`                 | IdP Transition | `BEABEE_IDP_PROVIDER=zitadel`, `BEABEE_IDP_SETTINGS_URL` (← `ISSUER`), `BEABEE_IDP_SETTINGS_PAT` (← `pat`) |
+| `oidc`                | OIDC           | the above + `BEABEE_LOGIN_PROVIDER=oidc`, `BEABEE_LOGIN_SETTINGS_ISSUER` (← `ISSUER`), `_CLIENTID` (← `CLIENT_ID`) |
 
-  # Login: OIDC against the tenant's instance (only read once
-  # BEABEE_LOGIN_PROVIDER=oidc)
-  BEABEE_LOGIN_SETTINGS_ISSUER: { name: zitadel-<release>, key: ISSUER }
-  BEABEE_LOGIN_SETTINGS_CLIENTID: { name: zitadel-<release>, key: CLIENT_ID }
-  # optional — the app default is the same `openid profile email`
-  BEABEE_LOGIN_SETTINGS_SCOPES: { name: zitadel-<release>, key: OIDC_SCOPES }
-```
+Move one step at a time, **one deploy each**, in this order:
 
-Leave `BEABEE_LOGIN_SETTINGS_CLIENTSECRET` unset: the Job creates a public
-PKCE client, and an empty secret means "public client" to the app. The
-redirect URI defaults from `BEABEE_AUDIENCE` and matches
-`zitadel.redirectPaths` / `zitadel.postLogoutPaths`. There is no
-organisation to pin — accounts land in the instance's default organisation.
-Two more settings arrive with later monorepo PRs and are not needed yet:
-`BEABEE_LOGIN_SETTINGS_ACCOUNTURL` (the Zitadel console security page,
-`https://<login-domain>/ui/console/users/me?id=security`) and
-`BEABEE_IDP_SETTINGS_WEBHOOKSECRET` (signing key of the email-verified
-Actions target).
+1. `zitadel.enabled: true` — the instance is provisioned, login unchanged.
+   Never combine this with a state change: the env references Secrets that
+   only exist after the reconciler and the bootstrap Job have run, and pods
+   cannot start until they do.
+2. `state: idp` — password login stays on; provision/link the existing
+   contacts in the instance (`backend-cli user provision` / `user link`).
+3. `state: oidc` — **the login flip.** Only once the contacts are linked.
 
-#### Instance states
+Break-glass: set `state: idp` and redeploy; local password hashes are kept,
+so password login works again immediately.
 
-A tenant is in exactly one of three states, and moves through them in this
-order:
+Notes:
 
-| State          | `BEABEE_LOGIN_PROVIDER`             | `BEABEE_IDP_PROVIDER`                                  |
-| -------------- | ----------------------------------- | ------------------------------------------------------ |
-| Standalone     | `local` (default)                   | `none` (default)                                       |
-| IdP Transition | `local`                             | `zitadel` + `BEABEE_IDP_SETTINGS_URL` / `_PAT`         |
-| OIDC           | `oidc` + `BEABEE_LOGIN_SETTINGS_*`  | `zitadel`                                              |
-
-- `zitadel.enabled: true` alone leaves the tenant **Standalone** — the
-  instance exists, nothing about login changes.
-- **IdP Transition**: set `BEABEE_IDP_PROVIDER=zitadel` plus the two
-  `BEABEE_IDP_SETTINGS_*` refs. Password login stays on; existing contacts
-  are provisioned/linked in the instance (`backend-cli user provision` /
-  `user link`). Safe to combine with enabling provisioning.
-- **OIDC** — the login flip — is `BEABEE_LOGIN_PROVIDER=oidc`, not the
-  presence of an issuer. Set it only once the contacts are linked. The app
-  refuses to boot with `BEABEE_LOGIN_PROVIDER=oidc` and
-  `BEABEE_IDP_PROVIDER=none`.
-- **Break-glass**: set `BEABEE_LOGIN_PROVIDER=local` and redeploy. Local
-  password hashes are kept, so password login works again immediately.
+- These env entries are explicit `env`, so they override any `*_PROVIDER`
+  or `*_SETTINGS_*` left in the tenant's `env-<release>` secret or in
+  `secretRefs`. Tenants on an external IdP keep `zitadel.enabled: false`
+  and wire `secretRefs` by hand.
+- `BEABEE_LOGIN_SETTINGS_CLIENTSECRET` stays unset: the client is public
+  with PKCE, and an empty secret means "public client" to the app.
+  `BEABEE_LOGIN_SETTINGS_SCOPES` stays unset too — the app default equals
+  the provisioned `OIDC_SCOPES` (`openid profile email`). The redirect and
+  post-logout URIs default from `BEABEE_AUDIENCE` and match
+  `zitadel.redirectPaths` / `zitadel.postLogoutPaths`. There is no
+  organisation to pin — accounts land in the instance's default one.
+- The app refuses to boot with `BEABEE_LOGIN_PROVIDER=oidc` and
+  `BEABEE_IDP_PROVIDER=none`; the `oidc` state always renders both.
+- Two more settings arrive with later monorepo PRs and will be added to the
+  `oidc` state then: `BEABEE_LOGIN_SETTINGS_ACCOUNTURL` (the Zitadel console
+  security page, `https://<login-domain>/ui/console/users/me?id=security`)
+  and `BEABEE_IDP_SETTINGS_WEBHOOKSECRET` (signing key of the email-verified
+  Actions target).
 
 > **Version gate:** these variables only exist in app images that contain
 > monorepo #696/#699/#700 (requires app image ≥ `<version including #700>`).
 > On such an image, `BEABEE_IDP_PROVIDER=zitadel` without
-> `BEABEE_IDP_SETTINGS_URL` / `_PAT` fails at boot; on older images all of
-> these variables are ignored and the tenant stays on password login.
+> `BEABEE_IDP_SETTINGS_URL` / `_PAT` fails at boot (the chart always renders
+> them together); on older images all of these variables are ignored and
+> the tenant stays on password login.
 
 ### Offboarding
 

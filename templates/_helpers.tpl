@@ -71,6 +71,51 @@ Explicit env entries override envFrom, so these win over the default secret.
 {{- end }}
 
 {{/*
+BEABEE_IDP_* / BEABEE_LOGIN_* env for the tenant's ZITADEL instance state
+(zitadel.state), read from the Secrets the reconciler and the bootstrap Job
+deliver. Explicit env wins over envFrom, so these override any *_PROVIDER
+set in the env secret. Nothing is rendered for "standalone".
+*/}}
+{{- define "beabee.zitadelAppEnv" -}}
+{{- if .Values.zitadel.enabled }}
+{{- $state := .Values.zitadel.state }}
+{{- if not (has $state (list "standalone" "idp" "oidc")) }}
+{{- fail (printf "zitadel.state must be one of standalone, idp, oidc (got %q)" $state) }}
+{{- end }}
+{{- $secret := include "beabee.zitadelSecretName" . }}
+{{- if ne $state "standalone" }}
+- name: BEABEE_IDP_PROVIDER
+  value: zitadel
+# The virtual instance's API is its issuer URL.
+- name: BEABEE_IDP_SETTINGS_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret }}
+      key: ISSUER
+- name: BEABEE_IDP_SETTINGS_PAT
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "beabee.zitadelPatSecretName" . }}
+      key: pat
+{{- end }}
+{{- if eq $state "oidc" }}
+- name: BEABEE_LOGIN_PROVIDER
+  value: oidc
+- name: BEABEE_LOGIN_SETTINGS_ISSUER
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret }}
+      key: ISSUER
+- name: BEABEE_LOGIN_SETTINGS_CLIENTID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret }}
+      key: CLIENT_ID
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 The tenant's Hive domain
 */}}
 {{- define "beabee.hiveDomain" -}}
