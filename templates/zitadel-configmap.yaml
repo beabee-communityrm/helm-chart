@@ -17,9 +17,12 @@
 #   2. ensure a project                  (ZITADEL's grouping for apps)
 #   3. ensure an OIDC client in it       (what the app authenticates
 #      against: a "public" client using PKCE, so there is no client secret
-#      to manage — matches how the beabee app calls it)
+#      to manage — matches how the beabee app calls it), and keep its
+#      redirect / post-logout URIs in sync with hive.domain
 #
-# Steps are search-first: existing things are reused, so re-runs are no-ops.
+# Steps are search-first: existing things are reused, so re-runs are no-ops
+# (the only write on re-run is the client's URI list, and only when it
+# differs from what the chart renders).
 # Nothing is ever deleted here — the instance outlives the release, and
 # offboarding is a deliberate manual step (see README).
 #
@@ -96,17 +99,42 @@ data:
       return { id: created.id, existed: false };
     }
 
+    // Order-insensitive comparison: ZITADEL returns URI lists in its own order.
+    function sameSet(a = [], b = []) {
+      const sa = [...a].sort(), sb = [...b].sort();
+      return sa.length === sb.length && sa.every((v, i) => v === sb[i]);
+    }
+
     async function ensureApp(orgId, projectId) {
       const found = await zitadel('POST', `/management/v1/projects/${projectId}/apps/_search`, {
         queries: [{ nameQuery: { name: APP_NAME, method: 'TEXT_QUERY_METHOD_EQUALS' } }],
       }, orgId);
-      const existing = found.result?.[0]?.oidcConfig?.clientId;
-      if (existing) return { clientId: existing, existed: true };
+      const existing = found.result?.[0];
+      if (existing?.oidcConfig?.clientId) {
+        const cfg = existing.oidcConfig;
+        // Reconcile the URI lists so a changed hive.domain (or a changed
+        // default in this chart) reaches the client without a Console edit.
+        // Only written when they differ — ZITADEL rejects a no-op update.
+        // The other settings are echoed back unchanged: the update call
+        // replaces the whole OIDC config, so omitting one would reset it.
+        if (!sameSet(cfg.redirectUris, REDIRECT_URIS) || !sameSet(cfg.postLogoutRedirectUris, POST_LOGOUT_URIS)) {
+          const keep = ['responseTypes', 'grantTypes', 'appType', 'authMethodType', 'devMode',
+            'accessTokenType', 'accessTokenRoleAssertion', 'idTokenRoleAssertion',
+            'idTokenUserinfoAssertion', 'clockSkew', 'additionalOrigins',
+            'skipNativeAppSuccessPage', 'backChannelLogoutUri', 'loginVersion'];
+          const body = Object.fromEntries(keep.filter((k) => cfg[k] !== undefined).map((k) => [k, cfg[k]]));
+          await zitadel('PUT', `/management/v1/projects/${projectId}/apps/${existing.id}/oidc_config`, {
+            ...body,
+            redirectUris: REDIRECT_URIS,
+            postLogoutRedirectUris: POST_LOGOUT_URIS,
+          }, orgId);
+          return { clientId: cfg.clientId, state: 'URIs UPDATED' };
+        }
+        return { clientId: cfg.clientId, state: 'exists' };
+      }
       // A "web" client with PKCE and no client secret (authMethod NONE):
       // nothing confidential to rotate, and the beabee app uses no client
-      // auth when BEABEE_OIDC_CLIENTSECRET is empty. Redirect URIs are
-      // fixed at creation; changing hive.domain later means editing the
-      // app in the ZITADEL Console (create-only here).
+      // auth when BEABEE_LOGIN_SETTINGS_CLIENTSECRET is empty.
       const created = await zitadel('POST', `/management/v1/projects/${projectId}/apps/oidc`, {
         name: APP_NAME,
         redirectUris: REDIRECT_URIS,
@@ -117,7 +145,7 @@ data:
         authMethodType: 'OIDC_AUTH_METHOD_TYPE_NONE',
         accessTokenType: 'OIDC_TOKEN_TYPE_BEARER',
       }, orgId);
-      return { clientId: created.clientId, existed: false };
+      return { clientId: created.clientId, state: 'CREATED' };
     }
 
     // Persist the results as a Secret in the tenant's namespace, talking to
@@ -158,17 +186,21 @@ data:
     const app = await ensureApp(org.id, project.id);
     console.log(`instance ${INSTANCE_ID}, org ${org.id} (${org.name}), ` +
       `project ${project.id} (${project.existed ? 'exists' : 'CREATED'}), ` +
-      `app ${app.clientId} (${app.existed ? 'exists' : 'CREATED'})`);
+      `app ${app.clientId} (${app.state})`);
 
+    // Tenants are isolated by instance: accounts live in the instance's
+    // default organization and the app does not pin one, so no org ID is
+    // handed over. ISSUER doubles as the IdP API URL
+    // (BEABEE_IDP_SETTINGS_URL) — on a virtual instance the issuer and the
+    // API are the same host.
     const stringData = {
       ISSUER,
       INSTANCE_ID,
-      ORG_ID: org.id,
       PROJECT_ID: project.id,
       CLIENT_ID: app.clientId,
-      // Instance isolation replaces the org-model's org-pinning scope: the
-      // tenant's issuer only ever serves their instance, so plain OIDC
-      // scopes suffice for BEABEE_OIDC_SCOPES.
+      // The tenant's issuer only ever serves their instance, so plain OIDC
+      // scopes suffice for BEABEE_LOGIN_SETTINGS_SCOPES (also the app's
+      // default — wiring this key is optional).
       OIDC_SCOPES: 'openid profile email',
     };
     if (!TARGET_SECRET) {

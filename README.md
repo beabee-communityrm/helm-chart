@@ -26,45 +26,75 @@ chart declares, controllers converge).
 - an idempotent post-hook Job then provisions the inside of the instance —
   **project** and **OIDC client** (public client + PKCE, redirect URIs on
   `hive.domain`) — and writes Secret **`zitadel-<release>`** with the
-  results: `ISSUER`, `INSTANCE_ID`, `ORG_ID`, `PROJECT_ID`, `CLIENT_ID`,
-  `OIDC_SCOPES`. On first install the Job simply waits until the reconciler
-  has delivered the credential (up to ~15 min).
+  results: `ISSUER`, `INSTANCE_ID`, `PROJECT_ID`, `CLIENT_ID`,
+  `OIDC_SCOPES`. On re-runs it also keeps the client's redirect and
+  post-logout URIs in sync with `hive.domain`. On first install the Job
+  simply waits until the reconciler has delivered the credential (up to
+  ~15 min).
 
 **Provisioning does not change how anyone logs in.** The app keeps its
-built-in password login until its env is explicitly wired up (below).
+built-in password login until `BEABEE_LOGIN_PROVIDER=oidc` is set (below).
 
-### Handing the credentials to the app
+The instance-admin PAT the reconciler delivers must belong to a service user
+with `IAM_OWNER` on the virtual instance: the app uses it for user
+management now, and later `backend-cli idp setup` will write login settings,
+an Actions target and the label policy with it.
 
-The app reads OIDC login config from `BEABEE_OIDC_*` and provisioning
-config from `BEABEE_IDP_*`. Wire them from the provisioned Secret with the
-chart's existing `secretRefs` mechanism:
+### Handing the credentials to the app: `zitadel.state`
 
-```yaml
-secretRefs:
-  # Step 2 (safe anytime): user provisioning/linking against the tenant's
-  # instance — the PAT is instance-scoped, it cannot touch other tenants
-  BEABEE_IDP_ZITADEL_PAT: { name: zitadel-instance-pat-<release>, key: pat }
-  BEABEE_IDP_ZITADEL_ORGID: { name: zitadel-<release>, key: ORG_ID }
+The app has two independent switches (monorepo `docs/oidc-login.md`):
+`BEABEE_IDP_PROVIDER` selects the identity provider it manages accounts in,
+`BEABEE_LOGIN_PROVIDER` selects how people log in. Together they put a
+tenant in exactly one of three states. The chart renders the matching env
+into every backend and the migration Job from the provisioned Secrets —
+you only set `zitadel.state`:
 
-  # Step 3 (THE LOGIN FLIP — see warning): OIDC login
-  BEABEE_OIDC_ISSUER: { name: zitadel-<release>, key: ISSUER }
-  BEABEE_OIDC_CLIENTID: { name: zitadel-<release>, key: CLIENT_ID }
-  BEABEE_OIDC_SCOPES: { name: zitadel-<release>, key: OIDC_SCOPES }
-```
+| `zitadel.state`       | State          | Env rendered by the chart                                                                                |
+| --------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
+| `standalone` (default) | Standalone     | nothing — password login, instance unused                                                                 |
+| `idp`                 | IdP Transition | `BEABEE_IDP_PROVIDER=zitadel`, `BEABEE_IDP_SETTINGS_URL` (← `ISSUER`), `BEABEE_IDP_SETTINGS_PAT` (← `pat`) |
+| `oidc`                | OIDC           | the above + `BEABEE_LOGIN_PROVIDER=oidc`, `BEABEE_LOGIN_SETTINGS_ISSUER` (← `ISSUER`), `_CLIENTID` (← `CLIENT_ID`) |
 
-(plus `BEABEE_IDP_PROVIDER=zitadel` in the tenant's env secret for step 2.
-No `BEABEE_OIDC_CLIENTSECRET` — the client is public with PKCE. The
-redirect URI defaults from `BEABEE_AUDIENCE` and matches
-`zitadel.redirectPaths`.)
+Move one step at a time, **one deploy each**, in this order:
 
-> **Warning:** setting `BEABEE_OIDC_ISSUER` immediately switches that
-> beabee instance to OIDC login and **disables password login**. Never
-> combine it with the change that enables provisioning. Order per tenant:
-> 1. `zitadel.enabled: true` — instance exists, login unchanged;
-> 2. provision/link the existing contacts (`backend-cli user provision` /
->    `user link`, needs the `BEABEE_IDP_*` values);
-> 3. only then add the `BEABEE_OIDC_*` refs — and the tenant must run an
->    app image that contains the OIDC login feature.
+1. `zitadel.enabled: true` — the instance is provisioned, login unchanged.
+   Never combine this with a state change: the env references Secrets that
+   only exist after the reconciler and the bootstrap Job have run, and pods
+   cannot start until they do.
+2. `state: idp` — password login stays on; provision/link the existing
+   contacts in the instance (`backend-cli user provision` / `user link`).
+3. `state: oidc` — **the login flip.** Only once the contacts are linked.
+
+Break-glass: set `state: idp` and redeploy; local password hashes are kept,
+so password login works again immediately.
+
+Notes:
+
+- These env entries are explicit `env`, so they override any `*_PROVIDER`
+  or `*_SETTINGS_*` left in the tenant's `env-<release>` secret or in
+  `secretRefs`. Tenants on an external IdP keep `zitadel.enabled: false`
+  and wire `secretRefs` by hand.
+- `BEABEE_LOGIN_SETTINGS_CLIENTSECRET` stays unset: the client is public
+  with PKCE, and an empty secret means "public client" to the app.
+  `BEABEE_LOGIN_SETTINGS_SCOPES` stays unset too — the app default equals
+  the provisioned `OIDC_SCOPES` (`openid profile email`). The redirect and
+  post-logout URIs default from `BEABEE_AUDIENCE` and match
+  `zitadel.redirectPaths` / `zitadel.postLogoutPaths`. There is no
+  organisation to pin — accounts land in the instance's default one.
+- The app refuses to boot with `BEABEE_LOGIN_PROVIDER=oidc` and
+  `BEABEE_IDP_PROVIDER=none`; the `oidc` state always renders both.
+- Two more settings arrive with later monorepo PRs and will be added to the
+  `oidc` state then: `BEABEE_LOGIN_SETTINGS_ACCOUNTURL` (the Zitadel console
+  security page, `https://<login-domain>/ui/console/users/me?id=security`)
+  and `BEABEE_IDP_SETTINGS_WEBHOOKSECRET` (signing key of the email-verified
+  Actions target).
+
+> **Version gate:** these variables only exist in app images that contain
+> monorepo #696/#699/#700 (requires app image ≥ `<version including #700>`).
+> On such an image, `BEABEE_IDP_PROVIDER=zitadel` without
+> `BEABEE_IDP_SETTINGS_URL` / `_PAT` fails at boot (the chart always renders
+> them together); on older images all of these variables are ignored and
+> the tenant stays on password login.
 
 ### Offboarding
 

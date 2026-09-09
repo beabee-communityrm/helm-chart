@@ -155,21 +155,32 @@ cnpg:
     - uuid-ossp
 
 # ---------------------------------------------------------------------------
-# ZITADEL (shared IdP) — org lifecycle for this tenant. STRICTLY OPT-IN.
+# ZITADEL (shared IdP) — this tenant's virtual instance. STRICTLY OPT-IN.
 #
-# When enabled, a post-install/upgrade hook ensures this tenant's
-# organization, project and OIDC client in the shared ZITADEL instance and
-# writes the resulting IDs to Secret "zitadel-<release>"; a labeled Ingress
-# rendered into the zitadel namespace declares the tenant's vanity login
-# domain (registered by the central domain reconciler there). Like the CNPG
-# Database, the organization survives helm uninstall — offboarding is a
+# When enabled, a labeled Ingress rendered into the zitadel namespace
+# declares the tenant's virtual instance and vanity login domain (the
+# central reconciler there creates the instance and delivers its admin PAT),
+# and a post-install/upgrade hook ensures project and OIDC client inside the
+# instance and writes the resulting IDs to Secret "zitadel-<release>". Like
+# the CNPG Database, the instance survives helm uninstall — offboarding is a
 # manual runbook step.
 #
-# Enabling this provisions ONLY. The app keeps its built-in login until it
-# consumes the provisioned values (separate app-side project).
+# Enabling this provisions ONLY. What the app does with the instance is a
+# separate, per-tenant step: zitadel.state (see README).
 # ---------------------------------------------------------------------------
 zitadel:
   enabled: false
+  # Which of the app's three instance states this tenant is in (monorepo
+  # docs/oidc-login.md). Renders the matching BEABEE_IDP_* / BEABEE_LOGIN_*
+  # env into every backend from the provisioned Secrets; move one step at a
+  # time, one deploy each (the Secrets the env references must already
+  # exist, so never enable and wire in the same deploy):
+  #   standalone  provisioning only, password login (default)
+  #   idp         BEABEE_IDP_PROVIDER=zitadel — accounts are provisioned/
+  #               linked in the instance, login unchanged
+  #   oidc        + BEABEE_LOGIN_PROVIDER=oidc — THE LOGIN FLIP
+  # Break-glass: set back to idp and redeploy (password hashes are kept).
+  state: standalone
   # The namespace the shared ZITADEL runs in (target of the login-domain
   # Ingress, like cnpg.namespace for the Database).
   namespace: zitadel
@@ -195,12 +206,14 @@ zitadel:
   patSecretName: ""
   # OAuth callback paths on the tenant's app domain (hive.domain), used for
   # the OIDC client's redirect URIs. The default matches the app's
-  # BEABEE_OIDC_REDIRECTURI default (${BEABEE_AUDIENCE}/api/1.0/auth/callback).
+  # BEABEE_LOGIN_SETTINGS_REDIRECTURI default
+  # (${BEABEE_AUDIENCE}/api/1.0/auth/callback). The bootstrap Job keeps the
+  # client's URI lists in sync with these on every run.
   redirectPaths:
     - /api/1.0/auth/callback
+  # Post-logout redirect paths. ZITADEL matches post_logout_redirect_uri
+  # exactly, and the app's default BEABEE_LOGIN_SETTINGS_POSTLOGOUTREDIRECTURI
+  # is BEABEE_AUDIENCE with no trailing slash — so register both variants.
   postLogoutPaths:
+    - ""
     - /
-  # DEPRECATED (org-model leftovers, ignored; removed once all tenants are
-  # on the instance model):
-  host: ""
-  orgName: ""

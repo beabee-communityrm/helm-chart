@@ -30,4 +30,7 @@ spec:
             {{- with (include "beabee.secretRefEnv" .) }}
             {{- . | nindent 12 }}
             {{- end }}
+            {{- with (include "beabee.zitadelAppEnv" .) }}
+            {{- . | nindent 12 }}
+            {{- end }}
 {{- end }}
