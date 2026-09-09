@@ -188,17 +188,17 @@ data:
       `project ${project.id} (${project.existed ? 'exists' : 'CREATED'}), ` +
       `app ${app.clientId} (${app.state})`);
 
-    // No ORG_ID: tenants are isolated by instance, accounts live in the
-    // instance's default organization and the app no longer pins one. ISSUER
-    // doubles as the IdP API URL (BEABEE_IDP_SETTINGS_URL) — on a virtual
-    // instance the issuer and the API are the same host.
+    // Tenants are isolated by instance: accounts live in the instance's
+    // default organization and the app does not pin one, so no org ID is
+    // handed over. ISSUER doubles as the IdP API URL
+    // (BEABEE_IDP_SETTINGS_URL) — on a virtual instance the issuer and the
+    // API are the same host.
     const stringData = {
       ISSUER,
       INSTANCE_ID,
       PROJECT_ID: project.id,
       CLIENT_ID: app.clientId,
-      // Instance isolation replaces the org-model's org-pinning scope: the
-      // tenant's issuer only ever serves their instance, so plain OIDC
+      // The tenant's issuer only ever serves their instance, so plain OIDC
       // scopes suffice for BEABEE_LOGIN_SETTINGS_SCOPES (also the app's
       // default — wiring this key is optional).
       OIDC_SCOPES: 'openid profile email',

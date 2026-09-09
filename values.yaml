@@ -206,7 +206,3 @@ zitadel:
   postLogoutPaths:
     - ""
     - /
-  # DEPRECATED (org-model leftovers, ignored; removed once all tenants are
-  # on the instance model):
-  host: ""
-  orgName: ""
