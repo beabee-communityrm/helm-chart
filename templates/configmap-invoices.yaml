@@ -1,0 +1,45 @@
+{{- if .Values.invoices.enabled }}
+# The SQL the invoices hook (job-invoices.yaml) runs as the tenant role.
+# Everything here is within the database owner's rights: creating a schema,
+# granting on objects it owns, and default privileges for objects it will
+# create. A DO block rather than plain statements so the invoices schema is
+# only touched when this role owns it -- on a schema owned by someone else
+# even naming a table in it would fail with "permission denied for schema".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "beabee.fullname" . }}-invoices
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: invoices
+data:
+  invoices.sql: |
+    DO $$
+    DECLARE
+      invoices_role constant text := {{ .Values.invoices.role | squote }};
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'invoices') THEN
+        EXECUTE 'CREATE SCHEMA invoices';
+      END IF;
+
+      IF EXISTS (SELECT 1 FROM pg_namespace
+                 WHERE nspname = 'invoices' AND pg_get_userbyid(nspowner) = current_user) THEN
+        EXECUTE 'CREATE TABLE IF NOT EXISTS invoices.payment_seen (
+                   id VARCHAR PRIMARY KEY,
+                   added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                 )';
+        EXECUTE format('GRANT USAGE ON SCHEMA invoices TO %I', invoices_role);
+        EXECUTE format('GRANT SELECT, INSERT ON invoices.payment_seen TO %I', invoices_role);
+      ELSE
+        RAISE NOTICE 'schema invoices is not owned by %, leaving it as is', current_user;
+      END IF;
+
+      -- The app's tables: the ones that exist, and the ones future migrations
+      -- create (default privileges attach to the role running this, which is
+      -- the role the migrations run as).
+      EXECUTE format('GRANT USAGE ON SCHEMA public TO %I', invoices_role);
+      EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA public TO %I', invoices_role);
+      EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO %I', invoices_role);
+    END
+    $$;
+{{- end }}
