@@ -140,9 +140,18 @@ router:
 
 # Run DB migrations (`typeorm migration:run`) as a pre-upgrade/pre-install
 # hook Job before the deployments roll. A failed migration fails the upgrade
-# and leaves the running pods untouched.
+# and leaves the running pods untouched. An init container first waits until
+# the database answers, since on a first install it may still be being
+# created by whoever provisions it.
 migration:
   enabled: true
+  # Give up waiting for the database after this long.
+  waitSeconds: 600
+
+# Image with psql, for the hooks that talk to Postgres directly (the app
+# image has none). The cluster's own Postgres image is already on the nodes
+# and matches the server's major version.
+postgresClientImage: ghcr.io/cloudnative-pg/postgresql:16.9-standard-bookworm
 
 # One-off `yarn backend-cli` runs: a suspended CronJob (never fires) that is
 # the template one-off Jobs are stamped from with `kubectl create job --from`
@@ -169,8 +178,11 @@ cli:
       memory: "1Gi"
 
 
+# The database itself is provisioned outside the chart: the app only needs
+# BEABEE_DATABASE_URL to point at one that exists. Enable this only where
+# nothing else creates the CNPG Database.
 cnpg:
-  enabled: true
+  enabled: false
   namespace: hive-pg
   clusterName: hive-pg
   databaseName: ""  # defaults to .Release.Name
@@ -189,9 +201,6 @@ cnpg:
 invoices:
   enabled: true
   role: beabee-invoices
-  # Needs psql, which the app image lacks. The cluster's own Postgres image
-  # is already on the nodes and matches the server's major version.
-  image: ghcr.io/cloudnative-pg/postgresql:16.9-standard-bookworm
   resources:
     requests:
       cpu: 50m

@@ -24,7 +24,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: invoices
-          image: {{ .Values.invoices.image }}
+          image: {{ .Values.postgresClientImage }}
           # The same BEABEE_DATABASE_URL the backends use, so a secretRefs
           # override of it is honoured here too.
           command: ['sh', '-c', 'exec psql "$BEABEE_DATABASE_URL" -v ON_ERROR_STOP=1 -f /sql/invoices.sql']
