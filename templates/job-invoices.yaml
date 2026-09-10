@@ -1,0 +1,48 @@
+{{- if .Values.invoices.enabled }}
+# Grants the invoicing role access to this tenant's database after every
+# install/upgrade (idempotent -- see configmap-invoices.yaml). A post- hook
+# so it sees the tables the migration hook has just created, and so nothing
+# about invoicing can block an app deploy.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "beabee.fullname" . }}-invoices
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: invoices
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "beabee.podLabels" (dict "component" "invoices") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: invoices
+          image: {{ .Values.invoices.image }}
+          # The same BEABEE_DATABASE_URL the backends use, so a secretRefs
+          # override of it is honoured here too.
+          command: ['sh', '-c', 'exec psql "$BEABEE_DATABASE_URL" -v ON_ERROR_STOP=1 -f /sql/invoices.sql']
+          envFrom:
+            - secretRef:
+                name: {{ include "beabee.secretName" . }}
+          {{- with (include "beabee.secretRefEnv" .) }}
+          env:
+            {{- . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+              readOnly: true
+          resources:
+            {{- toYaml .Values.invoices.resources | nindent 12 }}
+      volumes:
+        - name: sql
+          configMap:
+            name: {{ include "beabee.fullname" . }}-invoices
+{{- end }}

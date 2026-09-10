@@ -61,6 +61,29 @@ Notes:
   `yarn backend-cli --help`: a smoke test of image and env.
 - `cli.enabled: false` removes the template (nothing else depends on it).
 
+## Invoices schema (`invoices.*`)
+
+Hive's invoicing reads every tenant database through one internal role
+(`invoices.role`, a CNPG managed role on the shared cluster). What
+hive-deploy-stack's `new-instance.sh` used to set up by hand in psql, a
+post-install/upgrade hook Job now does on every deploy: an `invoices` schema
+with the `payment_seen` table the invoicing writes to, `USAGE` on both
+schemas, `SELECT` on the app's tables (existing and, via default privileges,
+future ones).
+
+It runs **as the tenant role**, connecting with the same `BEABEE_DATABASE_URL`
+the backends use — no superuser. The tenant role owns the database, so
+creating the schema, granting on its own objects and setting default
+privileges for objects it creates are all within its rights; the invoicing
+role only has to exist. That is also why it is a post- hook: the migration
+hook has just created the tables it grants on. A migrated tenant's `invoices`
+schema, which came over owned by the invoicing role, is left untouched (the
+grants on `public` still apply).
+
+The Job uses `invoices.image` rather than the app image because the latter
+has no `psql`; the default is the cluster's own Postgres image, already
+present on the nodes. `invoices.enabled: false` removes the hook.
+
 ## ZITADEL instance provisioning (`zitadel.*`, opt-in)
 
 Each client gets their own **virtual instance** in the shared ZITADEL

@@ -178,6 +178,28 @@ cnpg:
   extensions:
     - uuid-ossp
 
+# Hive's invoicing reads every tenant database through one internal role, a
+# CNPG managed role on the shared cluster. This post-install/upgrade hook
+# gives that role what hive-deploy-stack's new-instance.sh used to set up by
+# hand: an "invoices" schema holding payment_seen, and SELECT on the app's
+# tables. It runs as the tenant role -- the database owner -- so no superuser
+# is involved; the invoicing role only has to exist. Idempotent, and it
+# leaves an invoices schema it does not own alone (migrated tenants brought
+# theirs over owned by the invoicing role).
+invoices:
+  enabled: true
+  role: beabee-invoices
+  # Needs psql, which the app image lacks. The cluster's own Postgres image
+  # is already on the nodes and matches the server's major version.
+  image: ghcr.io/cloudnative-pg/postgresql:16.9-standard-bookworm
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
 # ---------------------------------------------------------------------------
 # ZITADEL (shared IdP) — this tenant's virtual instance. STRICTLY OPT-IN.
 #
