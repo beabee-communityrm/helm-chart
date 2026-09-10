@@ -79,8 +79,8 @@ role only has to exist. That is also why it is a post- hook: the migration
 hook has just created the tables it grants on. An `invoices` schema owned by
 another role is left untouched; only the grants on `public` are applied.
 
-The Job uses `invoices.image` rather than the app image because the latter
-has no `psql`; the default is the cluster's own Postgres image, already
+The Job uses `postgresClientImage` rather than the app image because the
+latter has no `psql`; the default is the cluster's own Postgres image, already
 present on the nodes. `invoices.enabled: false` removes the hook.
 
 ## ZITADEL instance provisioning (`zitadel.*`, opt-in)

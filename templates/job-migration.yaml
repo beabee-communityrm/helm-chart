@@ -12,12 +12,39 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: 3
+  activeDeadlineSeconds: {{ add .Values.migration.waitSeconds 600 }}
   template:
     metadata:
       labels:
         {{- include "beabee.podLabels" (dict "component" "migration") | nindent 8 }}
     spec:
       restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-database
+          image: {{ .Values.postgresClientImage }}
+          command:
+            - sh
+            - -c
+            - |
+              for i in $(seq 1 {{ div .Values.migration.waitSeconds 5 }}); do
+                psql "$BEABEE_DATABASE_URL" -Atc 'select 1' >/dev/null 2>&1 && exit 0
+                echo "database not reachable yet ($i)"; sleep 5
+              done
+              echo "gave up waiting for the database"; exit 1
+          envFrom:
+            - secretRef:
+                name: {{ include "beabee.secretName" . }}
+          {{- with (include "beabee.secretRefEnv" .) }}
+          env:
+            {{- . | nindent 12 }}
+          {{- end }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
       containers:
         - name: migration
           image: beabee/beabee-api-app:{{ .Values.image.tag | default .Chart.AppVersion }}
