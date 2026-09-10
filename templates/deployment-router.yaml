@@ -19,6 +19,7 @@ spec:
       containers:
         - name: router
           image: beabee/beabee-router:{{ .Values.image.tag | default .Chart.AppVersion }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           # Defaults for required env vars the tenant secret may not provide.
           # Explicit env entries below override these; a missing optional
           # secret key leaves the default in place. (Duplicate env entries
