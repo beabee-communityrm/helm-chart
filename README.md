@@ -195,8 +195,8 @@ Notes:
 
 ### Offboarding
 
-Deliberately nothing is deleted automatically (same policy as the CNPG
-`Database`): on uninstall the login-domain Ingress goes away, but the
+Deliberately nothing is deleted automatically: on uninstall the login-domain
+Ingress goes away, but the
 virtual instance (with its users), the `zitadel-<release>`,
 `zitadel-<release>-admin` and `zitadel-instance-pat-<release>` Secrets and
 their sources in the zitadel namespace stay. Removing them is a manual
