@@ -44,6 +44,7 @@ spec:
           # The app image doubles as our Node runtime — already trusted and
           # pulled in this namespace; the script only needs node >= 24.
           image: beabee/beabee-api-app:{{ .Values.image.tag | default .Chart.AppVersion }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ['node', '/scripts/bootstrap.mjs']
           env:
             - name: ZITADEL_API

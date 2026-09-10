@@ -2,6 +2,9 @@ image:
   # Empty = use Chart.yaml's appVersion (the source of truth). Override per
   # release (e.g. staged rollout of a new app version to one tenant).
   tag: ""
+  # Applies to every beabee app container. Use Always when the tag is a
+  # moving one (e.g. a branch tag) so a rollout picks up the new build.
+  pullPolicy: IfNotPresent
 
 # ---------------------------------------------------------------------------
 # Hive-level config.

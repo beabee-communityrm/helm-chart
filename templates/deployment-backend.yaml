@@ -33,6 +33,7 @@ spec:
       containers:
         - name: {{ $b.name }}
           image: beabee/beabee-{{ $b.name }}:{{ $.Values.image.tag | default $.Chart.AppVersion }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
           envFrom:
             - secretRef:
                 name: {{ include "beabee.secretName" $ }}
