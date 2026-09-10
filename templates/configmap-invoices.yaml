@@ -17,6 +17,7 @@ data:
     DO $$
     DECLARE
       invoices_role constant text := {{ .Values.invoices.role | squote }};
+      tbl regclass;
     BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'invoices') THEN
         EXECUTE 'CREATE SCHEMA invoices';
@@ -36,9 +37,17 @@ data:
 
       -- The app's tables: the ones that exist, and the ones future migrations
       -- create (default privileges attach to the role running this, which is
-      -- the role the migrations run as).
+      -- the role the migrations run as). Table by table rather than ON ALL
+      -- TABLES: a stray table owned by someone else (a manual backup, say)
+      -- makes the latter fail outright instead of skipping it.
       EXECUTE format('GRANT USAGE ON SCHEMA public TO %I', invoices_role);
-      EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA public TO %I', invoices_role);
+      FOR tbl IN
+        SELECT c.oid FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'v', 'm', 'f', 'p')
+          AND pg_get_userbyid(c.relowner) = current_user
+      LOOP
+        EXECUTE format('GRANT SELECT ON %s TO %I', tbl, invoices_role);
+      END LOOP;
       EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO %I', invoices_role);
     END
     $$;
