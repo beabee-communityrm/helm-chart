@@ -14,3 +14,12 @@ Describe the motivating case generically instead. Write "a tenant with a
 foreign-owned table in its schema", not the tenant's name. If the generic
 description would be too vague to justify the change, the detail belongs in
 the private repository, not here.
+
+## Chart version
+
+Bump the patch of `version` in Chart.yaml in every change that alters what
+the chart renders: templates, values.yaml defaults, or appVersion. Flux
+redeploys a HelmRelease only when the chart version changes, so a change
+without a bump merges but never reaches a cluster. Changes that only touch
+this file, the README or update.sh need no bump. `update.sh` bumps the
+version itself when it sets appVersion.
