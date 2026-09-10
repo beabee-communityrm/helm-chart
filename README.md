@@ -76,10 +76,8 @@ the backends use — no superuser. The tenant role owns the database, so
 creating the schema, granting on its own objects and setting default
 privileges for objects it creates are all within its rights; the invoicing
 role only has to exist. That is also why it is a post- hook: the migration
-hook has just created the tables it grants on. Every tenant's `invoices`
-schema is owned by its tenant role (the migrated ones were handed over from
-the superuser on 2026-09-10); should one not be, it is left untouched and
-only the grants on `public` are applied.
+hook has just created the tables it grants on. An `invoices` schema owned by
+another role is left untouched; only the grants on `public` are applied.
 
 The Job uses `invoices.image` rather than the app image because the latter
 has no `psql`; the default is the cluster's own Postgres image, already

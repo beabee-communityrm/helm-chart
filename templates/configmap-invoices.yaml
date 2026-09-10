@@ -3,9 +3,8 @@
 # Everything here is within the database owner's rights: creating a schema,
 # granting on objects it owns, and default privileges for objects it will
 # create. A DO block rather than plain statements so the invoices schema is
-# only touched when this role owns it: that is the state of every tenant
-# today, but on a schema owned by someone else even naming a table in it
-# would fail with "permission denied for schema", so the guard stays.
+# only touched when this role owns it -- on a schema owned by someone else
+# even naming a table in it would fail with "permission denied for schema".
 apiVersion: v1
 kind: ConfigMap
 metadata:

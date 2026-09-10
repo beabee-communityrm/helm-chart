@@ -183,10 +183,9 @@ cnpg:
 # gives that role what hive-deploy-stack's new-instance.sh used to set up by
 # hand: an "invoices" schema holding payment_seen, and SELECT on the app's
 # tables. It runs as the tenant role -- the database owner -- so no superuser
-# is involved; the invoicing role only has to exist. Idempotent. Every
-# tenant's invoices schema is owned by its tenant role (the migrated ones
-# were moved from the superuser on 2026-09-10); one that is not gets only
-# the grants on public and a notice.
+# is involved; the invoicing role only has to exist. Idempotent. An
+# invoices schema owned by another role is left alone and gets only the
+# grants on public.
 invoices:
   enabled: true
   role: beabee-invoices
