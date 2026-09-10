@@ -1,7 +1,6 @@
 {{- if .Values.zitadel.enabled }}
 # The tenant's vanity login domain, declared as an Ingress in the ZITADEL
-# namespace — the same cross-namespace pattern as database.yaml (CNPG). The
-# label is picked up by the central domain reconciler there, which registers
+# namespace. The label is picked up by the central domain reconciler there, which registers
 # the host inside ZITADEL (instance + trusted domain). Routing and the
 # certificate are handled here; the hostname needs a DNS record pointing at
 # the shared ingress LB. Deleted with the release on purpose — the
