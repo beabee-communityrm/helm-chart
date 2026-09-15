@@ -44,16 +44,12 @@ ingress:
 # ---------------------------------------------------------------------------
 # Component settings
 #
-# Resource defaults measured 2026-08-28..09-07 across 45 tenants. The window
-# starts after the v0.51.2 jemalloc step (2026-08-26), which raised
-# steady-state RSS fleet-wide; earlier data biases requests low.
-#
 # Requests come from container_memory_rss at the p95 of per-pod medians: a
 # request is a steady-state reservation, and staying under it keeps a pod off
 # the kubelet's eviction shortlist. Limits come from
 # container_memory_working_set_bytes at ~1.2-1.5x the fleet peak, because the
 # cgroup v2 limit is enforced against memory.current, which includes page
-# cache -- sizing a limit from RSS understates it. CPU is unchanged.
+# cache -- sizing a limit from RSS understates it.
 #
 # Tenants whose api-app runs hotter than these defaults override
 # apiApp.resources in their own HelmRelease values, deep-merged over this file.
@@ -61,12 +57,14 @@ ingress:
 apiApp:
   enabled: true
   replicaCount: 1
-  # median RSS 155Mi, p95 of per-pod medians 195Mi, WS peak 309Mi, excluding
-  # the tenants that override.
+  # Excluding the tenants that override: median RSS 164Mi, p95 of per-pod
+  # medians 182Mi, WS peak 309Mi. The request sits just under that p95, so a
+  # few tenants run a handful of Mi over it -- too small to matter for eviction
+  # ranking, and worth ~0.7Gi of reservation across the fleet.
   resources:
     requests:
       cpu: "25m"
-      memory: "192Mi"
+      memory: "176Mi"
     limits:
       cpu: "2"
       memory: "384Mi"
@@ -74,44 +72,39 @@ apiApp:
 webhookApp:
   enabled: true
   replicaCount: 1
-  # median RSS 130Mi, p95 142Mi, WS peak 260Mi. Request 160 -> 144Mi: 160Mi
-  # was above every RSS sample in the window.
+  # median RSS 129Mi, p95 of per-pod medians 135Mi, WS peak 260Mi.
   resources:
     requests:
       cpu: "10m"
-      memory: "144Mi"
+      memory: "136Mi"
     limits:
       cpu: "2"
-      memory: "384Mi"
+      memory: "320Mi"
 
 legacyApp:
   enabled: true
   replicaCount: 1
-  # median RSS 170Mi, p95 182Mi, WS peak 317Mi. Limit 512 -> 448Mi (1.41x the
-  # WS peak); 512Mi came from reading that 317Mi WS peak as if it were RSS.
+  # median RSS 167Mi, p95 of per-pod medians 173Mi, WS peak 306Mi.
   resources:
     requests:
       cpu: "25m"
-      memory: "192Mi"
+      memory: "176Mi"
     limits:
       cpu: "2"
-      memory: "448Mi"
+      memory: "384Mi"
 
-# Bimodal: the daemon idles at 27Mi median RSS, but each triggered job boots a
-# full backend-cli in this cgroup and peaks at 605Mi RSS / 632Mi WS.
-#
-# request 128 -> 80Mi (p95 of per-pod medians is 53Mi). Reserving the burst
-# fleet-wide would hold 27GB for a total that peaks at 3275Mi, and the bursts
-# are unsynchronized -- at most 6 of 45 pods above 200Mi at once over 10 days.
-# limit 640 -> 768Mi, the one value sized up: WS peak 632Mi left 8Mi of
-# headroom, and an OOMKill here aborts a job mid-run rather than restarting.
+# Bimodal: the daemon idles at 34Mi median RSS, but each scheduled job boots a
+# full backend-cli in this cgroup and peaks at 476Mi RSS / 528Mi WS. The
+# request covers the idle daemon only -- reserving the burst fleet-wide would
+# hold gigabytes no tenant sustains, and the crontab staggers spawns per pod.
+# The limit covers one booted job: an OOMKill here aborts a job mid-run.
 cronApp:
   enabled: true
   replicaCount: 1
   resources:
     requests:
       cpu: "25m"
-      memory: "80Mi"
+      memory: "48Mi"
     limits:
       cpu: "2"
       memory: "768Mi"
@@ -119,12 +112,13 @@ cronApp:
 frontend:
   enabled: true
   replicaCount: 1
-  # median RSS 4Mi, RSS peak 7Mi, WS peak 35Mi -- nginx serves the built assets
-  # from page cache. Unchanged; sizing this one from RSS is the trap.
+  # median RSS 6Mi, RSS peak 7Mi, WS peak 35Mi -- nginx serves the built assets
+  # from page cache, so the limit has to cover the cache even though the
+  # request does not.
   resources:
     requests:
       cpu: "5m"
-      memory: "16Mi"
+      memory: "12Mi"
     limits:
       cpu: "2"
       memory: "64Mi"
@@ -132,11 +126,11 @@ frontend:
 router:
   enabled: true
   replicaCount: 1
-  # median RSS 7Mi, RSS peak 11Mi, WS peak 17Mi. Unchanged.
+  # median RSS 7Mi, RSS peak 11Mi, WS peak 19Mi.
   resources:
     requests:
       cpu: "5m"
-      memory: "16Mi"
+      memory: "12Mi"
     limits:
       cpu: "2"
       memory: "64Mi"
