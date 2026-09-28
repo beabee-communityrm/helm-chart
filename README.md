@@ -134,8 +134,8 @@ built-in password login until `BEABEE_LOGIN_PROVIDER=oidc` is set (below).
 
 The instance-admin PAT the reconciler delivers must belong to a service user
 with `IAM_OWNER` on the virtual instance: the app uses it for user
-management now, and later `backend-cli idp setup` will write login settings,
-an Actions target and the label policy with it.
+management now, and later `backend-cli idp setup` will write login settings
+and the label policy with it.
 
 ### Handing the credentials to the app: `zitadel.state`
 
@@ -159,7 +159,7 @@ Move one step at a time, **one deploy each**, in this order:
    only exist after the reconciler and the bootstrap Job have run, and pods
    cannot start until they do.
 2. `state: idp` — password login stays on; provision/link the existing
-   contacts in the instance (`backend-cli user provision` / `user link`).
+   contacts in the instance (`backend-cli user provision`).
 3. `state: oidc` — **the login flip.** Only once the contacts are linked.
 
 Break-glass: set `state: idp` and redeploy; local password hashes are kept,
@@ -180,14 +180,7 @@ Notes:
   organisation to pin — accounts land in the instance's default one.
 - The app refuses to boot with `BEABEE_LOGIN_PROVIDER=oidc` and
   `BEABEE_IDP_PROVIDER=none`; the `oidc` state always renders both.
-- Two more settings arrive with later monorepo PRs and will be added to the
-  `oidc` state then: `BEABEE_LOGIN_SETTINGS_ACCOUNTURL` (the Zitadel console
-  security page, `https://<login-domain>/ui/console/users/me?id=security`)
-  and `BEABEE_IDP_SETTINGS_WEBHOOKSECRET` (signing key of the email-verified
-  Actions target).
-
-> **Version gate:** these variables only exist in app images that contain
-> monorepo #696/#699/#700 (requires app image ≥ `<version including #700>`).
+> **Version gate:** these variables exist in app images ≥ `v0.52.0`.
 > On such an image, `BEABEE_IDP_PROVIDER=zitadel` without
 > `BEABEE_IDP_SETTINGS_URL` / `_PAT` fails at boot (the chart always renders
 > them together); on older images all of these variables are ignored and

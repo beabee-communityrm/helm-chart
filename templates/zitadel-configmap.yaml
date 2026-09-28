@@ -38,9 +38,9 @@
 #
 # Finally the resulting IDs land in Secret
 # "{{ include "beabee.zitadelSecretName" . }}" in the tenant's namespace.
-# That Secret is the handover point: the app starts using ZITADEL only when
-# its env is explicitly wired to these values via secretRefs (see README —
-# provisioning alone changes nothing about how anyone logs in).
+# That Secret is the handover point: the chart renders the app's env from
+# it according to zitadel.state (see README — provisioning alone changes
+# nothing about how anyone logs in).
 apiVersion: v1
 kind: ConfigMap
 metadata:
