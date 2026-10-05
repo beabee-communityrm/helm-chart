@@ -4,7 +4,9 @@ One release per tenant (`beabee-<id>` — release name, namespace and derived
 resource names are all conventions, see `templates/_helpers.tpl`). Deployed
 by Flux from `main`; bump `version` in `Chart.yaml` for any change to roll
 out (`update.sh` does this for app releases). Tenant configuration lives in
-each tenant's HelmRelease values plus the SOPS secret `env-<release>`.
+each tenant's HelmRelease values plus the SOPS secret `env-<release>`. A
+change to that secret rolls the Deployments through the cluster's Reloader
+(`secret.reloader.stakater.com/reload`), since the pods read it only at start.
 
 ## Running backend CLI commands (`cli.*`)
 

@@ -57,6 +57,15 @@ env-{{ include "beabee.fullname" . }}
 {{- end }}
 
 {{/*
+Deployment annotation for Reloader: the pods read the env secret only at
+start, so a change to it rolls the Deployment. Only this secret, not the
+zitadel ones, which zitadel.state wires in with a deploy of its own.
+*/}}
+{{- define "beabee.reloadAnnotations" -}}
+secret.reloader.stakater.com/reload: {{ include "beabee.secretName" . }}
+{{- end }}
+
+{{/*
 Render secretRef overrides as env entries. Call from a container spec.
 Explicit env entries override envFrom, so these win over the default secret.
 */}}

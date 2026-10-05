@@ -6,6 +6,8 @@ metadata:
   labels:
     {{- include "beabee.labels" . | nindent 4 }}
     component: router
+  annotations:
+    {{- include "beabee.reloadAnnotations" . | nindent 4 }}
 spec:
   replicas: {{ .Values.router.replicaCount }}
   selector:

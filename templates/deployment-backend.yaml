@@ -20,6 +20,8 @@ metadata:
   labels:
     {{- include "beabee.labels" $ | nindent 4 }}
     component: {{ $b.name }}
+  annotations:
+    {{- include "beabee.reloadAnnotations" $ | nindent 4 }}
 spec:
   replicas: {{ $cfg.replicaCount }}
   selector:
