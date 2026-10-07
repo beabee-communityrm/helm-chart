@@ -40,9 +40,9 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: zitadel-login
+                name: {{ .Values.zitadel.loginService.name }}
                 port:
-                  number: 3000
+                  number: {{ .Values.zitadel.loginService.port }}
   tls:
     - hosts:
         - {{ include "beabee.zitadelLoginDomain" . | quote }}

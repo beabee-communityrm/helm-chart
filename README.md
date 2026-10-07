@@ -104,9 +104,10 @@ chart declares, controllers converge).
   step is the DNS record for the login domain.
 - a second Ingress on the login domain, backed by an ExternalName alias of
   the tenant's router, maps `/ui/v2/login/_beabee/*` to the router with the
-  prefix stripped. The shared ingress injects a stylesheet at that path into
-  the hosted login pages, and the app serves it and the login background
-  from there (monorepo ADR-0006).
+  prefix stripped. With `zitadel.loginService` pointing at the
+  stylesheet-injecting proxy in front of the login, the hosted login pages
+  load a stylesheet from that path, and the app serves it and the login
+  background from there (monorepo ADR-0006).
 - an idempotent post-hook Job then provisions the inside of the instance —
   **project** and **OIDC client** (public client + PKCE, redirect URIs on
   `hive.domain`) — and writes Secret **`zitadel-<release>`** with the

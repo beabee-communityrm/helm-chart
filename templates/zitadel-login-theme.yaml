@@ -1,9 +1,10 @@
 {{- if .Values.zitadel.enabled }}
-# Stylesheet and background image for the hosted login pages. The shared
-# ingress injects a <link> to /ui/v2/login/_beabee/login-theme.css into every
-# login page; this maps that prefix on the tenant's login domain to the
-# tenant's router with the prefix stripped, so the app serves both files
-# same-origin for the login's content security policy. An Ingress can only
+# Stylesheet and background image for the hosted login pages. The proxy that
+# zitadel.loginService can point at injects a <link> to
+# /ui/v2/login/_beabee/login-theme.css into every login page; this maps that
+# prefix on the tenant's login domain to the tenant's router with the prefix
+# stripped, so the app serves both files same-origin for the login's content
+# security policy. An Ingress can only
 # target a Service in its own namespace, hence the ExternalName alias of the
 # router. TLS comes from the login-domain Ingress on the same host.
 apiVersion: v1
