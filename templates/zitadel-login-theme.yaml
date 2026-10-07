@@ -1,0 +1,49 @@
+{{- if .Values.zitadel.enabled }}
+# Stylesheet and background image for the hosted login pages. The shared
+# ingress injects a <link> to /ui/v2/login/_beabee/login-theme.css into every
+# login page; this maps that prefix on the tenant's login domain to the
+# tenant's router with the prefix stripped, so the app serves both files
+# same-origin for the login's content security policy. An Ingress can only
+# target a Service in its own namespace, hence the ExternalName alias of the
+# router. TLS comes from the login-domain Ingress on the same host.
+apiVersion: v1
+kind: Service
+metadata:
+  name: zitadel-login-{{ include "beabee.fullname" . }}-theme
+  namespace: {{ .Values.zitadel.namespace }}
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: zitadel-login-theme
+spec:
+  type: ExternalName
+  externalName: {{ include "beabee.fullname" . }}-router.{{ .Release.Namespace }}.svc.cluster.local
+  ports:
+    - port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zitadel-login-{{ include "beabee.fullname" . }}-theme
+  namespace: {{ .Values.zitadel.namespace }}
+  # Deliberately without the zitadel-login-domain label: the central
+  # reconciler must not read this Ingress as a domain declaration.
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: zitadel-login-theme
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+spec:
+  ingressClassName: {{ .Values.ingress.className | default "nginx" }}
+  rules:
+    - host: {{ include "beabee.zitadelLoginDomain" . | quote }}
+      http:
+        paths:
+          - path: /ui/v2/login/_beabee/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: zitadel-login-{{ include "beabee.fullname" . }}-theme
+                port:
+                  number: 80
+{{- end }}
