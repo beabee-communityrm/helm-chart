@@ -27,8 +27,9 @@ spec:
       http:
         paths:
           # OIDC endpoints (discovery, authorize, token) served by the
-          # ZITADEL API; the hosted login UI lives under /ui/v2/login.
-          # Service names/ports are those of the shared zitadel release.
+          # ZITADEL API; the hosted login UI lives under /ui/v2/login, behind
+          # the proxy that injects beabee's stylesheet (monorepo ADR-0006).
+          # Service names/ports are those of the shared ZITADEL namespace.
           - path: /
             pathType: Prefix
             backend:
@@ -40,9 +41,9 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: zitadel-login
+                name: zitadel-login-theme
                 port:
-                  number: 3000
+                  number: 80
   tls:
     - hosts:
         - {{ include "beabee.zitadelLoginDomain" . | quote }}
