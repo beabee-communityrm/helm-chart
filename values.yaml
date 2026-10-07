@@ -242,12 +242,6 @@ zitadel:
   adminEmail: ""
   # cert-manager issuer for the login-domain certificate.
   clusterIssuer: letsencrypt-prod
-  # Service in the ZITADEL namespace that serves the hosted login on the login
-  # domain. Point it at the stylesheet-injecting proxy in front of the login
-  # (monorepo ADR-0006) to opt this tenant into the themed login pages.
-  loginService:
-    name: zitadel-login
-    port: 3000
   projectName: beabee
   # Name of this tenant's instance-admin PAT secret (keys pat / instanceId /
   # generatedDomain), created by the central reconciler and reflector-
