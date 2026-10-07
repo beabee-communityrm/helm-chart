@@ -258,6 +258,10 @@ zitadel:
   # Post-logout redirect paths. ZITADEL matches post_logout_redirect_uri
   # exactly, and the app's default BEABEE_LOGIN_SETTINGS_POSTLOGOUTREDIRECTURI
   # is BEABEE_AUDIENCE with no trailing slash — so register both variants.
+  # The login page with its error code is where the app sends a member
+  # whose IdP account is linked to no contact, after ending their IdP
+  # session.
   postLogoutPaths:
     - ""
     - /
+    - /auth/login?loginError=unlinked-account
