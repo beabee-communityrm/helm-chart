@@ -248,20 +248,3 @@ zitadel:
   # mirrored into this namespace. Defaults to
   # zitadel-instance-pat-<instanceName>.
   patSecretName: ""
-  # OAuth callback paths on the tenant's app domain (hive.domain), used for
-  # the OIDC client's redirect URIs. The default matches the app's
-  # BEABEE_LOGIN_SETTINGS_REDIRECTURI default
-  # (${BEABEE_AUDIENCE}/api/1.0/auth/callback). The bootstrap Job keeps the
-  # client's URI lists in sync with these on every run.
-  redirectPaths:
-    - /api/1.0/auth/callback
-  # Post-logout redirect paths. ZITADEL matches post_logout_redirect_uri
-  # exactly, and the app's default BEABEE_LOGIN_SETTINGS_POSTLOGOUTREDIRECTURI
-  # is BEABEE_AUDIENCE with no trailing slash — so register both variants.
-  # The login page with its error code is where the app sends a member
-  # whose IdP account is linked to no contact, after ending their IdP
-  # session.
-  postLogoutPaths:
-    - ""
-    - /
-    - /auth/login?loginError=unlinked-account

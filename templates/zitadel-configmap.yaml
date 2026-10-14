@@ -17,17 +17,17 @@
 #   2. ensure a project                  (ZITADEL's grouping for apps)
 #   3. ensure an OIDC client in it       (what the app authenticates
 #      against: a "public" client using PKCE, so there is no client secret
-#      to manage — matches how the beabee app calls it), and keep its
-#      redirect / post-logout URIs in sync with hive.domain
+#      to manage — matches how the beabee app calls it). Its redirect and
+#      post-logout URI lists are the app's: `backend-cli setup integrations
+#      idp` keeps them in line (job-idp-setup.yaml)
 #   4. ensure a human "admin" user with IAM_OWNER on the instance — the
 #      PAT's machine user cannot log in to the Console, this one can. Its
 #      generated password lands in the create-once Secret
 #      "{{ include "beabee.zitadelAdminSecretName" . }}".
 #
 # Steps are search-first: existing things are reused, so re-runs are no-ops
-# (the only writes on re-run are the client's URI list, and only when it
-# differs from what the chart renders, and the admin password, only when
-# its Secret is missing — deleting that Secret is the rotation switch).
+# (the only write on re-run is the admin password, only when its Secret is
+# missing — deleting that Secret is the rotation switch).
 # Nothing is ever deleted here — the instance outlives the release, and
 # offboarding is a deliberate manual step (see README).
 #
@@ -62,8 +62,7 @@ data:
     const ISSUER = process.env.ISSUER;                 // tenant's login-domain URL
     const PROJECT_NAME = process.env.PROJECT_NAME;
     const APP_NAME = 'beabee';
-    const REDIRECT_URIS = process.env.REDIRECT_URIS.split(',');
-    const POST_LOGOUT_URIS = process.env.POST_LOGOUT_URIS.split(',');
+    const REDIRECT_URI = process.env.REDIRECT_URI;
     const TARGET_SECRET = process.env.TARGET_SECRET;   // empty = skip write (local testing)
     const ADMIN_SECRET = process.env.ADMIN_SECRET;
     const ADMIN_USERNAME = 'admin';
@@ -108,46 +107,20 @@ data:
       return { id: created.id, existed: false };
     }
 
-    // Order-insensitive comparison: ZITADEL returns URI lists in its own order.
-    function sameSet(a = [], b = []) {
-      const sa = [...a].sort(), sb = [...b].sort();
-      return sa.length === sb.length && sa.every((v, i) => v === sb[i]);
-    }
-
     async function ensureApp(orgId, projectId) {
       const found = await zitadel('POST', `/management/v1/projects/${projectId}/apps/_search`, {
         queries: [{ nameQuery: { name: APP_NAME, method: 'TEXT_QUERY_METHOD_EQUALS' } }],
       }, orgId);
       const existing = found.result?.[0];
       if (existing?.oidcConfig?.clientId) {
-        const cfg = existing.oidcConfig;
-        // Reconcile the URI lists so a changed hive.domain (or a changed
-        // default in this chart) reaches the client without a Console edit.
-        // Only written when they differ — ZITADEL rejects a no-op update.
-        // The other settings are echoed back unchanged: the update call
-        // replaces the whole OIDC config, so omitting one would reset it.
-        if (!sameSet(cfg.redirectUris, REDIRECT_URIS) || !sameSet(cfg.postLogoutRedirectUris, POST_LOGOUT_URIS)) {
-          const keep = ['responseTypes', 'grantTypes', 'appType', 'authMethodType', 'devMode',
-            'accessTokenType', 'accessTokenRoleAssertion', 'idTokenRoleAssertion',
-            'idTokenUserinfoAssertion', 'clockSkew', 'additionalOrigins',
-            'skipNativeAppSuccessPage', 'backChannelLogoutUri', 'loginVersion'];
-          const body = Object.fromEntries(keep.filter((k) => cfg[k] !== undefined).map((k) => [k, cfg[k]]));
-          await zitadel('PUT', `/management/v1/projects/${projectId}/apps/${existing.id}/oidc_config`, {
-            ...body,
-            redirectUris: REDIRECT_URIS,
-            postLogoutRedirectUris: POST_LOGOUT_URIS,
-          }, orgId);
-          return { clientId: cfg.clientId, state: 'URIs UPDATED' };
-        }
-        return { clientId: cfg.clientId, state: 'exists' };
+        return { clientId: existing.oidcConfig.clientId, state: 'exists' };
       }
       // A "web" client with PKCE and no client secret (authMethod NONE):
       // nothing confidential to rotate, and the beabee app uses no client
       // auth when BEABEE_LOGIN_SETTINGS_CLIENTSECRET is empty.
       const created = await zitadel('POST', `/management/v1/projects/${projectId}/apps/oidc`, {
         name: APP_NAME,
-        redirectUris: REDIRECT_URIS,
-        postLogoutRedirectUris: POST_LOGOUT_URIS,
+        redirectUris: [REDIRECT_URI],
         responseTypes: ['OIDC_RESPONSE_TYPE_CODE'],
         grantTypes: ['OIDC_GRANT_TYPE_AUTHORIZATION_CODE', 'OIDC_GRANT_TYPE_REFRESH_TOKEN'],
         appType: 'OIDC_APP_TYPE_WEB',
