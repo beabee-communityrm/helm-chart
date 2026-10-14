@@ -19,7 +19,7 @@
 #      against: a "public" client using PKCE, so there is no client secret
 #      to manage — matches how the beabee app calls it). Its redirect and
 #      post-logout URI lists are the app's: `backend-cli setup integrations
-#      idp` keeps them in line (zitadel-setup-job.yaml)
+#      idp` keeps them in line (zitadel-job-setup.yaml)
 #   4. ensure a human "admin" user with IAM_OWNER on the instance — the
 #      PAT's machine user cannot log in to the Console, this one can. Its
 #      generated password lands in the create-once Secret

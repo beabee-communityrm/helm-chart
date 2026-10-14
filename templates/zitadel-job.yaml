@@ -62,7 +62,7 @@ spec:
             - name: PROJECT_NAME
               value: {{ .Values.zitadel.projectName | quote }}
             # The app's OAuth callback, enough for a valid client; the app
-            # keeps the client's URI lists itself (zitadel-setup-job.yaml).
+            # keeps the client's URI lists itself (zitadel-job-setup.yaml).
             - name: REDIRECT_URI
               value: {{ printf "%s://%s/api/1.0/auth/callback" (include "beabee.scheme" .) .Values.hive.domain | quote }}
             - name: TARGET_SECRET
