@@ -108,13 +108,18 @@ chart declares, controllers converge).
   a stylesheet at that path, and the app serves it and the login background
   from there (monorepo ADR-0006).
 - an idempotent post-hook Job then provisions the inside of the instance —
-  **project** and **OIDC client** (public client + PKCE, redirect URIs on
-  `hive.domain`) — and writes Secret **`zitadel-<release>`** with the
-  results: `ISSUER`, `INSTANCE_ID`, `PROJECT_ID`, `CLIENT_ID`,
-  `OIDC_SCOPES`. On re-runs it also keeps the client's redirect and
-  post-logout URIs in sync with `hive.domain`. On first install the Job
+  **project** and **OIDC client** (public client + PKCE, the app's callback
+  on `hive.domain` as redirect URI) — and writes Secret
+  **`zitadel-<release>`** with the results: `ISSUER`, `INSTANCE_ID`,
+  `PROJECT_ID`, `CLIENT_ID`, `OIDC_SCOPES`. On first install the Job
   simply waits until the reconciler has delivered the credential (up to
   ~15 min).
+- once `zitadel.state` is `idp` or `oidc`, a second post-hook Job runs
+  `backend-cli setup integrations idp` with the app's env after every
+  deploy: the login policy, the login branding and, in the `oidc` state,
+  the client's redirect and post-logout URI lists, which the app owns
+  (monorepo `docs/oidc-login.md`). Older app images apply only the policy
+  and branding.
 - the same Job ensures a **human admin user** (username `admin`,
   `IAM_OWNER` on the instance, email `zitadel.adminEmail` — default
   `admin@<login-domain>`, created as verified so no mail is sent) and
@@ -141,8 +146,8 @@ built-in password login until `BEABEE_LOGIN_PROVIDER=oidc` is set (below).
 
 The instance-admin PAT the reconciler delivers must belong to a service user
 with `IAM_OWNER` on the virtual instance: the app uses it for user
-management now, and later `backend-cli idp setup` will write login settings
-and the label policy with it.
+management, and the setup Job writes the login policy, the label policy and
+the client's URI lists with it.
 
 ### Handing the credentials to the app: `zitadel.state`
 
@@ -181,10 +186,10 @@ Notes:
 - `BEABEE_LOGIN_SETTINGS_CLIENTSECRET` stays unset: the client is public
   with PKCE, and an empty secret means "public client" to the app.
   `BEABEE_LOGIN_SETTINGS_SCOPES` stays unset too — the app default equals
-  the provisioned `OIDC_SCOPES` (`openid profile email`). The redirect and
-  post-logout URIs default from `BEABEE_AUDIENCE` and match
-  `zitadel.redirectPaths` / `zitadel.postLogoutPaths`. There is no
-  organisation to pin — accounts land in the instance's default one.
+  the provisioned `OIDC_SCOPES` (`openid profile email`). The client's
+  redirect and post-logout URIs are fixed by the app under `BEABEE_AUDIENCE`
+  and kept in line by the setup Job. There is no organisation to pin —
+  accounts land in the instance's default one.
 - The app refuses to boot with `BEABEE_LOGIN_PROVIDER=oidc` and
   `BEABEE_IDP_PROVIDER=none`; the `oidc` state always renders both.
 > **Version gate:** these variables exist in app images ≥ `v0.52.0`.

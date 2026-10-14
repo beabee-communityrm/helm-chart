@@ -1,0 +1,49 @@
+{{- if and .Values.zitadel.enabled (ne .Values.zitadel.state "standalone") }}
+# Applies the IdP-side settings the app owns after every install/upgrade:
+# `backend-cli setup integrations idp` writes the login policy, the login
+# branding and, in the oidc state, the OIDC client's redirect and
+# post-logout URI lists (idempotent, see monorepo docs/oidc-login.md). It
+# runs with the app's own env, so it sees the same instance and client the
+# backends do, and after the bootstrap Job (hook-weight) so the client it
+# configures exists.
+# A post- hook like the bootstrap Job: a ZITADEL outage must never block an
+# app deploy. The price is a short window on a deploy that changes a route
+# or flips the state, until this Job has updated the client's URI lists.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "beabee.fullname" . }}-zitadel-setup
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: zitadel-setup
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        {{- include "beabee.podLabels" (dict "component" "zitadel-setup") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: setup
+          image: beabee/beabee-api-app:{{ .Values.image.tag | default .Chart.AppVersion }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ['yarn', 'backend-cli', 'setup', 'integrations', 'idp']
+          envFrom:
+            - secretRef:
+                name: {{ include "beabee.secretName" . }}
+          env:
+            {{- include "beabee.hiveDerivedEnv" . | nindent 12 }}
+            {{- include "beabee.hiveServiceEnv" . | nindent 12 }}
+            {{- with (include "beabee.secretRefEnv" .) }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- include "beabee.zitadelAppEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.cli.resources | nindent 12 }}
+{{- end }}

@@ -1,13 +1,4 @@
 {{- if .Values.zitadel.enabled }}
-{{- $scheme := include "beabee.scheme" . -}}
-{{- $redirects := list -}}
-{{- range .Values.zitadel.redirectPaths -}}
-{{- $redirects = append $redirects (printf "%s://%s%s" $scheme $.Values.hive.domain .) -}}
-{{- end -}}
-{{- $postLogouts := list -}}
-{{- range .Values.zitadel.postLogoutPaths -}}
-{{- $postLogouts = append $postLogouts (printf "%s://%s%s" $scheme $.Values.hive.domain .) -}}
-{{- end -}}
 # Provisions the inside of this tenant's ZITADEL virtual instance after
 # every install/upgrade (idempotent — see the script in
 # zitadel-configmap.yaml). The instance itself is created by the central
@@ -70,10 +61,10 @@ spec:
               value: {{ include "beabee.zitadelIssuer" . | quote }}
             - name: PROJECT_NAME
               value: {{ .Values.zitadel.projectName | quote }}
-            - name: REDIRECT_URIS
-              value: {{ join "," $redirects | quote }}
-            - name: POST_LOGOUT_URIS
-              value: {{ join "," $postLogouts | quote }}
+            # The app's OAuth callback, enough for a valid client; the app
+            # keeps the client's URI lists itself (zitadel-setup-job.yaml).
+            - name: REDIRECT_URI
+              value: {{ printf "%s://%s/api/1.0/auth/callback" (include "beabee.scheme" .) .Values.hive.domain | quote }}
             - name: TARGET_SECRET
               value: {{ include "beabee.zitadelSecretName" . }}
             - name: ADMIN_SECRET
