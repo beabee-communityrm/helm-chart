@@ -16,6 +16,13 @@ metadata:
     beabee.io/zitadel-login-domain: "true"
   annotations:
     cert-manager.io/cluster-issuer: {{ .Values.zitadel.clusterIssuer }}
+    # ZITADEL does no rate limiting of its own and password hashing is
+    # CPU-bound on the shared core: per-client-IP limits at the proxy slow
+    # credential stuffing without touching a normal login (a page load is
+    # well under the burst of 100). Rejections answer 503.
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+    nginx.ingress.kubernetes.io/limit-connections: "50"
     # The central reconciler reads these: which virtual instance to ensure
     # and where to deliver its admin-PAT Secret (via the reflector).
     beabee.io/zitadel-instance: {{ include "beabee.zitadelInstanceName" . | quote }}
