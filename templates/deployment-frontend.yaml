@@ -33,6 +33,12 @@ spec:
                   name: {{ include "beabee.secretName" . }}
                   key: BEABEE_CNR_MODE
                   optional: true
+            - name: DEFAULT_FRONTEND
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "beabee.secretName" . }}
+                  key: BEABEE_DEFAULT_FRONTEND
+                  optional: true
             - name: APPSIGNAL_KEY
               valueFrom:
                 secretKeyRef:
