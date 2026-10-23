@@ -1,11 +1,9 @@
 {{- if and .Values.zitadel.enabled (ne .Values.zitadel.state "standalone") }}
-# Applies the IdP-side settings the app owns after every install/upgrade:
-# `backend-cli setup integrations idp` writes the login policy, the login
-# branding and, in the oidc state, the OIDC client's redirect and
-# post-logout URI lists (idempotent, see monorepo docs/oidc-login.md). It
-# runs with the app's own env, so it sees the same instance and client the
-# backends do, and after the bootstrap Job (hook-weight) so the client it
-# configures exists.
+# Applies the IdP-side settings the app owns after every install/upgrade
+# with `backend-cli setup integrations idp` (idempotent, see monorepo
+# docs/oidc-login.md). It runs with the app's own env, so it sees the same
+# instance and client the backends do, and after the bootstrap Job
+# (hook-weight) so the client it configures exists.
 # A post- hook like the bootstrap Job: a ZITADEL outage must never block an
 # app deploy. The price is a short window on a deploy that changes a route
 # or flips the state, until this Job has updated the client's URI lists.
