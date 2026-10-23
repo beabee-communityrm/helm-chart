@@ -116,10 +116,8 @@ chart declares, controllers converge).
   ~15 min).
 - once `zitadel.state` is `idp` or `oidc`, a second post-hook Job runs
   `backend-cli setup integrations idp` with the app's env after every
-  deploy: the login policy, the login branding and, in the `oidc` state,
-  the client's redirect and post-logout URI lists, which the app owns
-  (monorepo `docs/oidc-login.md`). Older app images apply only the policy
-  and branding.
+  deploy, which applies the IdP-side settings the app owns (monorepo
+  `docs/oidc-login.md`).
 - the same Job ensures a **human admin user** (username `admin`,
   `IAM_OWNER` on the instance, email `zitadel.adminEmail` — default
   `admin@<login-domain>`, created as verified so no mail is sent) and
@@ -146,8 +144,7 @@ built-in password login until `BEABEE_LOGIN_PROVIDER=oidc` is set (below).
 
 The instance-admin PAT the reconciler delivers must belong to a service user
 with `IAM_OWNER` on the virtual instance: the app uses it for user
-management, and the setup Job writes the login policy, the label policy and
-the client's URI lists with it.
+management, and the setup Job writes instance-level settings with it.
 
 ### Handing the credentials to the app: `zitadel.state`
 
