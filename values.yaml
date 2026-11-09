@@ -150,6 +150,11 @@ migration:
 # and matches the server's major version.
 postgresClientImage: ghcr.io/cloudnative-pg/postgresql:16.9-standard-bookworm
 
+# Binds hive-kubernetes' beabee-support ClusterRole in this namespace for the
+# ServiceAccounts in the beabee-support namespace, one per support person.
+supportAccess:
+  enabled: true
+
 # One-off `yarn backend-cli` runs: a suspended CronJob (never fires) that is
 # the template one-off Jobs are stamped from with `kubectl create job --from`
 # (see README for the exact invocation). backend-cli boots a full beabee
