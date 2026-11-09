@@ -1,0 +1,21 @@
+{{- if .Values.supportAccess.enabled }}
+{{/*
+Lets the people in the cluster's beabee-support namespace work in this tenant,
+with the beabee-support ClusterRole from hive-kubernetes. Role and subject are
+fixed: taking them from values would let tenant values grant any identity.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "beabee.fullname" . }}-support
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: beabee-support
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:serviceaccounts:beabee-support
+{{- end }}

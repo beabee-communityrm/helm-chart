@@ -63,6 +63,14 @@ Notes:
   `yarn backend-cli --help`: a smoke test of image and env.
 - `cli.enabled: false` removes the template (nothing else depends on it).
 
+## Support access (`supportAccess.*`)
+
+A RoleBinding grants hive-kubernetes' `beabee-support` ClusterRole in the
+tenant namespace to every ServiceAccount in the cluster's `beabee-support`
+namespace, one per person who looks after the tenants. On by default;
+`supportAccess.enabled: false` leaves a tenant out. The role and the subject
+are fixed in the template, so tenant values cannot widen them.
+
 ## Invoices schema (`invoices.*`)
 
 Hive's invoicing reads every tenant database through one internal role
