@@ -24,6 +24,9 @@
 //   4. ensure a human "admin" user with IAM_OWNER on the instance — the
 //      PAT's machine user cannot log in to the Console, this one can. Its
 //      generated password lands in the create-once Secret ADMIN_SECRET.
+//   5. ensure the PAT's own user also holds IAM_LOGIN_CLIENT — the app
+//      finishes a login with a session it created itself (direct login),
+//      which IAM_OWNER does not allow.
 //
 // Steps are search-first: existing things are reused, so re-runs are no-ops
 // (the only write on re-run is the admin password, only when its Secret is
@@ -185,6 +188,17 @@ async function ensureAdminUser(org, secret) {
   return { userId, password, state, membership };
 }
 
+// The PAT's user is an instance member already (the reconciler created it
+// with IAM_OWNER), so the role is added to its existing ones.
+async function ensureLoginClient() {
+  const { user } = await zitadel('GET', '/auth/v1/users/me');
+  const members = await zitadel('POST', '/admin/v1/members/_search', { queries: [{ userIdQuery: { userId: user.id } }] });
+  const roles = members.result?.[0]?.roles ?? [];
+  if (roles.includes('IAM_LOGIN_CLIENT')) return { userId: user.id, state: 'exists' };
+  await zitadel('PUT', `/admin/v1/members/${user.id}`, { roles: [...roles, 'IAM_LOGIN_CLIENT'] });
+  return { userId: user.id, state: 'GRANTED' };
+}
+
 // Secrets in the tenant's namespace via Kubernetes' REST API with the
 // pod's own ServiceAccount token; the Role in zitadel-rbac.yaml limits
 // this to creating Secrets, rewriting the handover one and reading the
@@ -237,6 +251,8 @@ const app = await ensureApp(org.id, project.id);
 console.log(`instance ${INSTANCE_ID}, org ${org.id} (${org.name}), ` +
   `project ${project.id} (${project.existed ? 'exists' : 'CREATED'}), ` +
   `app ${app.clientId} (${app.state})`);
+const loginClient = await ensureLoginClient();
+console.log(`pat user ${loginClient.userId}, IAM_LOGIN_CLIENT ${loginClient.state}`);
 
 // Tenants are isolated by instance: accounts live in the instance's
 // default organization and the app does not pin one, so no org ID is
