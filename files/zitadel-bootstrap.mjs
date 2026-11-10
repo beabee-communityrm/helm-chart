@@ -16,6 +16,9 @@ const ADMIN_SECRET = process.env.ADMIN_SECRET;
 const ADMIN_USERNAME = 'admin';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const NAMESPACE = process.env.NAMESPACE;
+// Set when a local checkout of the app logs in: the client then accepts
+// http://localhost redirect URIs. Only applied when the client is created.
+const DEV_MODE = process.env.DEV_MODE === 'true';
 
 // One helper for every ZITADEL call. X-Forwarded-Host routes the
 // request to OUR instance (the core honors it as a proxied service;
@@ -74,6 +77,7 @@ async function ensureApp(orgId, projectId) {
     appType: 'OIDC_APP_TYPE_WEB',
     authMethodType: 'OIDC_AUTH_METHOD_TYPE_NONE',
     accessTokenType: 'OIDC_TOKEN_TYPE_BEARER',
+    devMode: DEV_MODE,
   }, orgId);
   return { clientId: created.clientId, state: 'CREATED' };
 }
