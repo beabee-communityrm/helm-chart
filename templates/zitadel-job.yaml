@@ -1,9 +1,9 @@
 {{- if .Values.zitadel.enabled }}
 # Provisions the inside of this tenant's ZITADEL virtual instance after
-# every install/upgrade (idempotent — see the script in
-# zitadel-configmap.yaml). The instance itself is created by the central
-# reconciler from the login-domain Ingress's annotations; this job waits
-# for the instance-admin PAT Secret the reconciler delivers (a missing
+# every install/upgrade (idempotent — see files/zitadel-bootstrap.mjs).
+# The instance itself is created by the central reconciler from the
+# login-domain Ingress's annotations; this job waits for the
+# instance-admin PAT Secret the reconciler delivers (a missing
 # secretKeyRef keeps the pod pending until the Secret arrives — the wait
 # is free), bounded by activeDeadlineSeconds (~3 reconciler ticks).
 # A post- hook on purpose: while the app doesn't consume OIDC, a ZITADEL
