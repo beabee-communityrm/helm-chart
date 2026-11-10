@@ -1,48 +1,7 @@
 {{- if .Values.zitadel.enabled }}
 # The ZITADEL provisioning script, run by the post-install/upgrade hook
-# (zitadel-job.yaml). It lives in files/zitadel-bootstrap.mjs so it also
-# runs outside the cluster: with TARGET_SECRET unset it prints the results
-# instead of writing Secrets.
-#
-# WHAT THIS DOES
-#
-# Each tenant has their own *virtual instance* in the shared ZITADEL — their
-# own users, branding, email sender and login domains, isolated the way each
-# tenant's database is isolated inside the shared Postgres cluster. The
-# instance itself (and its domains, and the credential this script uses) is
-# managed by the central reconciler in the zitadel namespace, driven by the
-# annotations on this chart's login-domain Ingress. This script provisions
-# the INSIDE of the instance after every deploy:
-#
-#   1. resolve the instance's default organization (created with the
-#      instance; users will live there)
-#   2. ensure a project                  (ZITADEL's grouping for apps)
-#   3. ensure an OIDC client in it       (what the app authenticates
-#      against: a "public" client using PKCE, so there is no client secret
-#      to manage — matches how the beabee app calls it). Its redirect and
-#      post-logout URI lists are the app's: `backend-cli setup integrations
-#      idp` keeps them in line (job-idp-setup.yaml)
-#   4. ensure a human "admin" user with IAM_OWNER on the instance — the
-#      PAT's machine user cannot log in to the Console, this one can. Its
-#      generated password lands in the create-once Secret
-#      "{{ include "beabee.zitadelAdminSecretName" . }}".
-#
-# Steps are search-first: existing things are reused, so re-runs are no-ops
-# (the only write on re-run is the admin password, only when its Secret is
-# missing — deleting that Secret is the rotation switch).
-# Nothing is ever deleted here — the instance outlives the release, and
-# offboarding is a deliberate manual step (see README).
-#
-# All API calls go to the in-cluster core URL and select THIS tenant's
-# instance via the X-Forwarded-Host header (a literal Host header would be
-# silently dropped by fetch), authenticated with the instance-admin PAT the
-# reconciler delivered — a credential valid for this instance alone.
-#
-# Finally the resulting IDs land in Secret
-# "{{ include "beabee.zitadelSecretName" . }}" in the tenant's namespace.
-# That Secret is the handover point: the chart renders the app's env from
-# it according to zitadel.state (see README — provisioning alone changes
-# nothing about how anyone logs in).
+# (zitadel-job.yaml). What it does is described in
+# files/zitadel-bootstrap.mjs.
 apiVersion: v1
 kind: ConfigMap
 metadata:
