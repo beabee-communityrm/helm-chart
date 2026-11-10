@@ -8,78 +8,47 @@ each tenant's HelmRelease values plus the SOPS secret `env-<release>`. A
 change to that secret rolls the Deployments through the cluster's Reloader
 (`secret.reloader.stakater.com/reload`), since the pods read it only at start.
 
-## Running backend CLI commands (`cli.*`)
+## Backend CLI template (`cli.*`)
 
-The Kubernetes replacement for `docker compose exec api_app yarn backend-cli
-...`. `kubectl exec` into the api-app pod does not work here: backend-cli
-boots a full beabee application rather than talking to the API, so inside
-api-app's cgroup two copies of the app compete for one memory limit and the
-command (or the pod) gets OOM-killed. Instead the chart renders a
-**suspended CronJob `<release>-cli`** — it never fires, it is only a template
-with the tenant's image tag, env (the same as the backends and the migration
-Job: env secret, `secretRefs`, `zitadel.state` env) and its own resources
-(`cli.resources`, default 512Mi request / 1Gi limit). Stamp a Job from it
-with your command. `kubectl create job --from=cronjob/... -- <cmd>` alone is
-refused by kubectl ("cannot specify --from and command"), so render the Job
-client-side, set the command, and create it:
+backend-cli boots a full beabee application, so running it with `kubectl exec`
+in the api-app pod puts two copies of the app under one memory limit and gets
+the command or the pod OOM-killed. The chart therefore renders a **suspended
+CronJob `<release>-cli`** that never fires. It is a template for one-off Jobs,
+with the tenant's image tag, the same env as the backends and the migration
+Job (env secret, `secretRefs`, `zitadel.state` env) and its own resources
+(`cli.resources`, default 512Mi request / 1Gi limit). hive-tenants'
+`scripts/backend-cli` stamps Jobs from it; it relies on the name
+`<release>-cli` and on the app being the first container.
 
-```sh
-NS=beabee-<id>
-kubectl -n $NS create job cli-$(date +%s) --from=cronjob/$NS-cli --dry-run=client -o json \
-  | jq '.spec.template.spec.containers[0].command = ["yarn","backend-cli","user","list"]' \
-  | kubectl -n $NS create -f -
-kubectl -n $NS logs -f job/cli-<ts>
-```
-
-The array is exactly what you typed after `docker compose exec api_app`
-before. The operator runbook (hive-kubernetes-prod `docs/support.md`) is the
-place for a wrapper around this; the chart only ships the template.
-
-**Interactive commands** (`setup admin`, `setup support-email`,
-`setup payment-methods`, `user delete` without `-y`) prompt on a TTY and
-would hang in a Job. Start a throwaway pod from the same template and exec
-into it — the old `exec` workflow, in a pod with the CLI's own limit:
-
-```sh
-kubectl -n $NS create job cli-shell --from=cronjob/$NS-cli --dry-run=client -o json \
-  | jq '.spec.template.spec.containers[0].command = ["sleep","3600"]' \
-  | kubectl -n $NS create -f -
-kubectl -n $NS exec -it job/cli-shell -- bash
-node@cli-shell-...:/opt/apps/backend$ yarn backend-cli setup admin
-kubectl -n $NS delete job cli-shell
-```
-
-Notes:
-
-- Job names must be unique in the namespace, hence the timestamp. Pods carry
-  `component=cli` for Loki. `backoffLimit` is 0: a failing command is not
-  retried, the Job shows `Failed` and its pod is kept for `kubectl logs` /
-  `describe`. Finished Jobs are deleted after `cli.ttlSecondsAfterFinished`
-  (default one day).
+- Pods carry `component=cli` for Loki.
+- `backoffLimit` is 0: a failing command is not retried, the Job shows
+  `Failed` and its pod is kept for `kubectl logs` / `describe`. Finished Jobs
+  are deleted after `cli.ttlSecondsAfterFinished` (default one day).
 - Runs use the tenant's deployed image (`image.tag` / `appVersion`), so the
-  CLI always matches the running backends. The command replaces the image's
-  `tini` entrypoint, which is fine for a one-shot process.
-- Unmodified (plain `kubectl create job --from`), the template runs
-  `yarn backend-cli --help`: a smoke test of image and env.
-- `cli.enabled: false` removes the template (nothing else depends on it).
+  CLI always matches the running backends. A Job's command replaces the
+  image's `tini` entrypoint, which is fine for a one-shot process.
+- Unmodified (`kubectl create job --from=cronjob/<release>-cli`), the template
+  runs `yarn backend-cli --help`: a smoke test of image and env.
+- `cli.enabled: false` removes the template; nothing else in the chart
+  depends on it.
 
 ## Support access (`supportAccess.*`)
 
-A RoleBinding grants hive-kubernetes' `beabee-support` ClusterRole in the
-tenant namespace to every ServiceAccount in the cluster's `beabee-support`
-namespace, one per person who looks after the tenants. On by default;
-`supportAccess.enabled: false` leaves a tenant out. The role and the subject
-are fixed in the template, so tenant values cannot widen them.
+A RoleBinding grants the `beabee-support` ClusterRole (defined in
+hive-kubernetes) in the tenant namespace to every ServiceAccount in the
+cluster's `beabee-support` namespace, one per person who looks after the
+tenants. On by default; `supportAccess.enabled: false` leaves a tenant out.
+The role and the subject are fixed in the template, so tenant values cannot
+widen them.
 
 ## Invoices schema (`invoices.*`)
 
 Hive's invoicing reads every tenant database through one internal role
-(`invoices.role`, a CNPG managed role on the shared cluster). What
-hive-deploy-stack's `new-instance.sh` used to set up by hand in psql, a
-post-install/upgrade hook Job now does on every deploy: an `invoices` schema
-with the `payment_seen` table the invoicing writes to, `USAGE` on both
-schemas, `SELECT` on the app's tables (existing and, via default privileges,
-future ones).
+(`invoices.role`, a CNPG managed role on the shared cluster). A
+post-install/upgrade hook Job sets up its access on every deploy: an
+`invoices` schema with the `payment_seen` table the invoicing writes to,
+`USAGE` on both schemas, `SELECT` on the app's tables (existing and, via
+default privileges, future ones).
 
 It runs **as the tenant role**, connecting with the same `BEABEE_DATABASE_URL`
 the backends use — no superuser. The tenant role owns the database, so
@@ -126,26 +95,18 @@ chart declares, controllers converge).
   `backend-cli setup integrations idp` with the app's env after every
   deploy, which applies the IdP-side settings the app owns (monorepo
   `docs/oidc-login.md`).
-- the same Job ensures a **human admin user** (username `admin`,
-  `IAM_OWNER` on the instance, email `zitadel.adminEmail` — default
+- the bootstrap Job also ensures a **human admin user** (username `admin`,
+  `IAM_OWNER` on the instance, email `zitadel.adminEmail`, default
   `admin@<login-domain>`, created as verified so no mail is sent) and
   writes its credentials to Secret **`zitadel-<release>-admin`**
   (`username`, `password`, `email`, `console`). The PAT's machine user
-  cannot use the Console; this one can:
-
-  ```sh
-  kubectl get secret zitadel-<release>-admin -n <ns> -o jsonpath='{.data.password}' | base64 -d
-  ```
-
-  Log in at `https://<login-domain>/ui/console`. The password is not
-  forced to change on first login: the Secret is the shared credential for
-  devs and support staff, so **do not change the password in the Console**
-  — the Secret would not follow. The Secret is **create-once**; the Job
-  never updates it. To rotate: delete the Secret and redeploy. The next
-  run resets the user's password (even if someone changed it in the
-  Console in the meantime) and recreates the Secret. If the user was
-  deleted in ZITADEL instead, the next run recreates it with the password
-  already in the Secret.
+  cannot use the Console; this one can. The Secret is the shared credential
+  for devs and support staff, so the password is not forced to change on
+  first login. The Secret is **create-once**: the Job never updates it, and
+  a password changed in the Console leaves it stale. When the Secret is
+  missing, the next run resets the user's password and recreates the
+  Secret; when the user is missing, the next run recreates it with the
+  password already in the Secret.
 
 **Provisioning does not change how anyone logs in.** The app keeps its
 built-in password login until `BEABEE_LOGIN_PROVIDER=oidc` is set (below).
@@ -203,14 +164,10 @@ Notes:
 > them together); on older images all of these variables are ignored and
 > the tenant stays on password login.
 
-### Offboarding
+### Uninstalling
 
-Deliberately nothing is deleted automatically: on uninstall the login-domain
-Ingress goes away, but the
-virtual instance (with its users), the `zitadel-<release>`,
+Uninstalling deletes nothing in ZITADEL. Only the login-domain Ingress goes
+away; the virtual instance with its users, the `zitadel-<release>`,
 `zitadel-<release>-admin` and `zitadel-instance-pat-<release>` Secrets and
-their sources in the zitadel namespace stay. Removing them is a manual
-step: delete the instance via the System API (this removes its domains with
-it) and delete the Secrets.
-A tenant migrating to self-hosted first gets an export
-(`/admin/v1/export`, `withPasswords: true` — users incl. password hashes).
+their sources in the zitadel namespace stay. Offboarding and exporting a
+tenant are in hive-tenants' support guide.
