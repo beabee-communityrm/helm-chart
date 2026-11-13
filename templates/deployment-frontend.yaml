@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: beabee/beabee-frontend:{{ .Values.image.tag | default .Chart.AppVersion }}
+          image: beabee/beabee-frontend:{{ include "beabee.imageTag" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: APP_BASE_URL

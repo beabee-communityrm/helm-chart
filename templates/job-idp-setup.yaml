@@ -29,7 +29,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: setup
-          image: beabee/beabee-api-app:{{ .Values.image.tag | default .Chart.AppVersion }}
+          image: beabee/beabee-api-app:{{ include "beabee.imageTag" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ['yarn', 'backend-cli', 'setup', 'integrations', 'idp']
           envFrom:

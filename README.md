@@ -3,9 +3,10 @@
 One release per tenant (`beabee-<id>` — release name, namespace and derived
 resource names are all conventions, see `templates/_helpers.tpl`). Deployed
 by Flux from `main`; bump `version` in `Chart.yaml` for any change to roll
-out (`update.sh` does this for app releases). Tenant configuration lives in
-each tenant's HelmRelease values plus the SOPS secret `env-<release>`. A
-change to that secret rolls the Deployments through the cluster's Reloader
+out. The app version is each tenant's `image.tag`, which is required: the
+chart has no default. Tenant configuration lives in each tenant's
+HelmRelease values plus the SOPS secret `env-<release>`. A change to that
+secret rolls the Deployments through the cluster's Reloader
 (`secret.reloader.stakater.com/reload`), since the pods read it only at start.
 
 ## Backend CLI template (`cli.*`)
@@ -24,8 +25,8 @@ Job (env secret, `secretRefs`, `zitadel.state` env) and its own resources
 - `backoffLimit` is 0: a failing command is not retried, the Job shows
   `Failed` and its pod is kept for `kubectl logs` / `describe`. Finished Jobs
   are deleted after `cli.ttlSecondsAfterFinished` (default one day).
-- Runs use the tenant's deployed image (`image.tag` / `appVersion`), so the
-  CLI always matches the running backends. A Job's command replaces the
+- Runs use the tenant's deployed image (`image.tag`), so the CLI always
+  matches the running backends. A Job's command replaces the
   image's `tini` entrypoint, which is fine for a one-shot process.
 - Unmodified (`kubectl create job --from=cronjob/<release>-cli`), the template
   runs `yarn backend-cli --help`: a smoke test of image and env.
