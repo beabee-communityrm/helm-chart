@@ -29,8 +29,8 @@ hive-tenants; link to them by repository name.
 ## Chart version
 
 Bump the patch of `version` in Chart.yaml in every change that alters what
-the chart renders: templates, values.yaml defaults, or appVersion. Flux
-redeploys a HelmRelease only when the chart version changes, so a change
-without a bump merges but never reaches a cluster. Changes that only touch
-this file, the README or update.sh need no bump. `update.sh` bumps the
-version itself when it sets appVersion.
+the chart renders: templates or values.yaml defaults. Flux redeploys a
+HelmRelease only when the chart version changes, so a change without a bump
+merges but never reaches a cluster. Changes that only touch this file or the
+README need no bump. The deployed app version is not part of the chart: it
+comes from each tenant's `image.tag` in hive-tenants.

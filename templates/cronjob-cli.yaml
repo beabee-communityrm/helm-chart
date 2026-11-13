@@ -54,7 +54,7 @@ spec:
               # The api-app image ships backend-cli (WORKDIR /opt/apps/backend,
               # from where `yarn backend-cli` resolves the root script, as the
               # cron image's crontab does).
-              image: beabee/beabee-api-app:{{ .Values.image.tag | default .Chart.AppVersion }}
+              image: beabee/beabee-api-app:{{ include "beabee.imageTag" . }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               # Placeholder — overridden per run. Unmodified it is a smoke
               # test: prints the command list and exits 0.

@@ -13,9 +13,14 @@ Common labels
 app: beabee
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/version: {{ include "beabee.imageTag" . | trunc 63 | trimSuffix "-" | quote }}
 {{- end }}
+
+{{/*
+Tag of every beabee app image. Each tenant sets image.tag; there is no default.
+*/}}
+{{- define "beabee.imageTag" -}}
+{{- required "image.tag is required: tenants set it explicitly, the chart has no default" .Values.image.tag }}
 {{- end }}
 
 {{/*
