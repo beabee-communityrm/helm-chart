@@ -138,13 +138,15 @@ The tenant's Hive domain
 
 {{/*
 HIVE_SERVICE_* — in-cluster DNS of the service upstreams, as host-only URLs
-(scheme + hostname, no port; each consumer appends the port it needs).
+(scheme + hostname, no port; each consumer appends the port it needs). The
+webhook app also serves the legacy app, so it takes legacy traffic when
+legacyApp is disabled.
 */}}
 {{- define "beabee.hiveServiceEnv" -}}
 {{- $fullname := include "beabee.fullname" . -}}
 {{- $suffix := printf "%s.svc.cluster.local" .Release.Namespace -}}
 - name: HIVE_SERVICE_APP
-  value: "http://{{ $fullname }}-legacy-app.{{ $suffix }}"
+  value: "http://{{ $fullname }}-{{ ternary "legacy-app" "webhook-app" .Values.legacyApp.enabled }}.{{ $suffix }}"
 - name: HIVE_SERVICE_API_APP
   value: "http://{{ $fullname }}-api-app.{{ $suffix }}"
 - name: HIVE_SERVICE_WEBHOOK_APP

@@ -81,6 +81,10 @@ webhookApp:
       cpu: "2"
       memory: "320Mi"
 
+# The webhook app also serves the legacy app. Set enabled: false to drop this
+# Deployment and route legacy traffic to webhook-app; that needs an app version
+# whose webhook image contains the legacy app, and webhookApp.resources raised
+# to the values below.
 legacyApp:
   enabled: true
   replicaCount: 1
