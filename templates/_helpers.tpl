@@ -45,9 +45,9 @@ still match their Deployment.
 app.kubernetes.io/name is what observability tooling keys on to group a workload:
 Grafana Alloy maps it onto the `app` log label, and Loki's automatic service-name
 discovery reads that before falling back to the container name. Without it beabee
-logs were split into six services -- api-app, webhook-app, cron-app, legacy-app,
-frontend, router -- rather than grouping under one "beabee", with the tenant in
-the namespace label.
+logs were split into five services -- api-app, webhook-app, cron-app, frontend,
+router -- rather than grouping under one "beabee", with the tenant in the
+namespace label.
 */}}
 {{- define "beabee.podLabels" -}}
 {{ include "beabee.selectorLabels" . }}
@@ -139,14 +139,13 @@ The tenant's Hive domain
 {{/*
 HIVE_SERVICE_* — in-cluster DNS of the service upstreams, as host-only URLs
 (scheme + hostname, no port; each consumer appends the port it needs). The
-webhook app also serves the legacy app, so it takes legacy traffic when
-legacyApp is disabled.
+webhook app also serves the legacy app, so HIVE_SERVICE_APP is its Service too.
 */}}
 {{- define "beabee.hiveServiceEnv" -}}
 {{- $fullname := include "beabee.fullname" . -}}
 {{- $suffix := printf "%s.svc.cluster.local" .Release.Namespace -}}
 - name: HIVE_SERVICE_APP
-  value: "http://{{ $fullname }}-{{ ternary "legacy-app" "webhook-app" .Values.legacyApp.enabled }}.{{ $suffix }}"
+  value: "http://{{ $fullname }}-webhook-app.{{ $suffix }}"
 - name: HIVE_SERVICE_API_APP
   value: "http://{{ $fullname }}-api-app.{{ $suffix }}"
 - name: HIVE_SERVICE_WEBHOOK_APP

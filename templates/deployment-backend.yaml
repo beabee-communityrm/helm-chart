@@ -7,7 +7,6 @@ neither — nothing routes to it. Per-service values keys (apiApp, …) are unch
 {{- $backends := list
     (dict "key" "apiApp"     "name" "api-app"     "ports" (list 3000 4000))
     (dict "key" "webhookApp" "name" "webhook-app" "ports" (list 3000 4000))
-    (dict "key" "legacyApp"  "name" "legacy-app"  "ports" (list 3000 4000))
     (dict "key" "cronApp"    "name" "cron-app") -}}
 {{- range $b := $backends }}
 {{- $cfg := index $.Values $b.key }}
