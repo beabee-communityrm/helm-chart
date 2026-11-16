@@ -69,26 +69,12 @@ apiApp:
       cpu: "2"
       memory: "384Mi"
 
+# Also serves the legacy app, which dominates its memory, so it is sized from
+# the legacy app's standalone figures: median RSS 167Mi, p95 of per-pod medians
+# 173Mi, WS peak 306Mi.
 webhookApp:
   enabled: true
   replicaCount: 1
-  # median RSS 129Mi, p95 of per-pod medians 135Mi, WS peak 260Mi.
-  resources:
-    requests:
-      cpu: "10m"
-      memory: "136Mi"
-    limits:
-      cpu: "2"
-      memory: "320Mi"
-
-# The webhook app also serves the legacy app. Set enabled: false to drop this
-# Deployment and route legacy traffic to webhook-app; that needs an app version
-# whose webhook image contains the legacy app, and webhookApp.resources raised
-# to the values below.
-legacyApp:
-  enabled: true
-  replicaCount: 1
-  # median RSS 167Mi, p95 of per-pod medians 173Mi, WS peak 306Mi.
   resources:
     requests:
       cpu: "25m"

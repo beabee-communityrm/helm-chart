@@ -1,10 +1,9 @@
 {{/*
-App backend Services — api/legacy/webhook share one shape: 3000 (router-facing
+App backend Services — api/webhook share one shape: 3000 (router-facing
 app traffic) and 4000 (service-to-service). Mirrors deployment-backend.yaml.
 */}}
 {{- $appServices := list
     (dict "key" "apiApp"     "name" "api-app")
-    (dict "key" "legacyApp"  "name" "legacy-app")
     (dict "key" "webhookApp" "name" "webhook-app") -}}
 {{- range $s := $appServices }}
 {{- if (index $.Values $s.key).enabled }}
