@@ -63,6 +63,15 @@ The Job uses `postgresClientImage` rather than the app image because the
 latter has no `psql`; the default is the cluster's own Postgres image, already
 present on the nodes. `invoices.enabled: false` removes the hook.
 
+## Router (`router.*`)
+
+`router.trustedProxies` is the list of CIDRs the router accepts
+`X-Forwarded-For` from, passed as `TRUSTED_PROXIES` (monorepo
+`apps/router`). The default, `0.0.0.0/0` and `::/0`, trusts every source, so a
+client can set its own IP. An empty list leaves the variable unset and the
+router falls back to private ranges, which covers the cluster ingress. Add a
+tenant's own proxy in front of the ingress to the list.
+
 ## ZITADEL instance provisioning (`zitadel.*`, opt-in)
 
 Each client gets their own **virtual instance** in the shared ZITADEL
