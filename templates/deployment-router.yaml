@@ -41,6 +41,10 @@ spec:
                   name: {{ include "beabee.secretName" . }}
                   key: BEABEE_TRUSTEDORIGINS
                   optional: true
+            {{- with .Values.router.trustedProxies }}
+            - name: TRUSTED_PROXIES
+              value: {{ join "," . | quote }}
+            {{- end }}
             # Upstream service DNS (router routes to these), see _helpers.tpl
             {{- include "beabee.hiveServiceEnv" . | nindent 12 }}
           ports:
