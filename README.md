@@ -67,10 +67,10 @@ present on the nodes. `invoices.enabled: false` removes the hook.
 
 `router.trustedProxies` is the list of CIDRs the router accepts
 `X-Forwarded-For` from, passed as `TRUSTED_PROXIES` (monorepo
-`apps/router`). The default, `0.0.0.0/0` and `::/0`, trusts every source, so a
-client can set its own IP. An empty list leaves the variable unset and the
-router falls back to private ranges, which covers the cluster ingress. Add a
-tenant's own proxy in front of the ingress to the list.
+`apps/router`). The default, the private ranges, covers the cluster ingress,
+which appends the real client IP, so a client cannot set its own. Add a
+tenant's own proxy in front of the ingress to the list. An empty list leaves
+the variable unset, and the router then trusts every source.
 
 ## ZITADEL instance provisioning (`zitadel.*`, opt-in)
 

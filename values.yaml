@@ -116,13 +116,12 @@ frontend:
 router:
   enabled: true
   replicaCount: 1
-  # CIDRs the router accepts X-Forwarded-For from (TRUSTED_PROXIES). 0.0.0.0/0
-  # and ::/0 trust every source, so a client can set its own IP. An empty list
-  # uses the router's default of private ranges, which covers the cluster
-  # ingress.
+  # CIDRs the router accepts X-Forwarded-For from, see the README.
   trustedProxies:
-    - 0.0.0.0/0
-    - ::/0
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    - fc00::/7
   # median RSS 7Mi, RSS peak 11Mi, WS peak 19Mi.
   resources:
     requests:
