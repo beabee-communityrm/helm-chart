@@ -89,6 +89,13 @@ chart declares, controllers converge).
   and delivers the instance-admin credential as Secret
   **`zitadel-instance-pat-<release>`** into this namespace. The only manual
   step is the DNS record for the login domain.
+- the login domain routes only the OIDC endpoints (`/oauth/v2`,
+  `/oidc/v1`, `/.well-known`), the branding assets (`/assets/v1`) and the
+  hosted login (`/ui/v2/login`). Every other path, the Console and the
+  management APIs among them, redirects to `hive.domain`, so a member
+  cannot change their account through the ZITADEL API. The app and the
+  chart's Jobs call that API at `zitadel.internalApi`. SAML and external
+  identity providers are not routed.
 - a second Ingress on the login domain, backed by an ExternalName alias of
   the tenant's router, maps `/ui/v2/login/_beabee/*` to the router with the
   prefix stripped. The hosted login is served through a proxy that injects
@@ -109,7 +116,8 @@ chart declares, controllers converge).
   `admin@<login-domain>`, created as verified so no mail is sent) and
   writes its credentials to Secret **`zitadel-<release>-admin`**
   (`username`, `password`, `email`, `console`). The PAT's machine user
-  cannot use the Console; this one can. The Secret is the shared credential
+  cannot use the Console; this one can, though not at the `console` URL,
+  which is on the login domain and redirects to the app. The Secret is the shared credential
   for devs and support staff, so the password is not forced to change on
   first login. The Secret is **create-once**: the Job never updates it, and
   a password changed in the Console leaves it stale. When the Secret is
@@ -173,6 +181,11 @@ Notes:
 > `BEABEE_IDP_SETTINGS_URL` / `_PAT` fails at boot (the chart always renders
 > them together); on older images all of these variables are ignored and
 > the tenant stays on password login.
+>
+> In the `idp` and `oidc` states the image must also honour
+> `BEABEE_IDP_SETTINGS_APIURL`. An image that ignores it calls the API at
+> the login domain, gets the redirect to the app, and cannot provision
+> contacts or build login links.
 
 ### Uninstalling
 
