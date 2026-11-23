@@ -100,12 +100,15 @@ set in the env secret. Nothing is rendered for "standalone".
 {{- if ne $state "standalone" }}
 - name: BEABEE_IDP_PROVIDER
   value: zitadel
-# The virtual instance's API is its issuer URL.
+# The virtual instance's public URL is its issuer URL; API calls go to the
+# in-cluster core instead, past the login domain's per-client rate limit.
 - name: BEABEE_IDP_SETTINGS_URL
   valueFrom:
     secretKeyRef:
       name: {{ $secret }}
       key: ISSUER
+- name: BEABEE_IDP_SETTINGS_APIURL
+  value: {{ .Values.zitadel.internalApi | quote }}
 - name: BEABEE_IDP_SETTINGS_PAT
   valueFrom:
     secretKeyRef:
