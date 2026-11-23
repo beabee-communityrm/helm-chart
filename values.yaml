@@ -212,11 +212,11 @@ invoices:
 # ---------------------------------------------------------------------------
 zitadel:
   enabled: false
-  # Which of the app's three instance states this tenant is in (monorepo
-  # docs/oidc-login.md). Renders the matching BEABEE_IDP_* / BEABEE_LOGIN_*
-  # env into every backend from the provisioned Secrets; move one step at a
-  # time, one deploy each (the Secrets the env references must already
-  # exist, so never enable and wire in the same deploy):
+  # Which of the app's three instance states this tenant is in. Renders the
+  # matching BEABEE_IDP_* / BEABEE_LOGIN_* env into every backend from the
+  # provisioned Secrets; move one step at a time, one deploy each (the
+  # Secrets the env references must already exist, so never enable and wire
+  # in the same deploy):
   #   standalone  provisioning only, password login (default)
   #   idp         BEABEE_IDP_PROVIDER=zitadel — accounts are provisioned/
   #               linked in the instance, login unchanged
