@@ -26,6 +26,11 @@ renders, and the rules a consumer must follow (such as the `zitadel.state`
 order). Procedures built on that, and the scripts that run them, belong in
 hive-tenants; link to them by repository name.
 
+The README and template comments describe what the chart runs, not what an
+app command does inside it; otherwise every change to the command needs a
+chart docs PR. Linking to the app's docs should be done sparingly, as they can
+easily go out of date.
+
 ## Chart version
 
 Bump the patch of `version` in Chart.yaml in every change that alters what
