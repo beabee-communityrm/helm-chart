@@ -137,7 +137,7 @@ you only set `zitadel.state`:
 | `zitadel.state`       | State          | Env rendered by the chart                                                                                |
 | --------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
 | `standalone` (default) | Standalone     | nothing — password login, instance unused                                                                 |
-| `idp`                 | IdP Transition | `BEABEE_IDP_PROVIDER=zitadel`, `BEABEE_IDP_SETTINGS_URL` (← `ISSUER`), `BEABEE_IDP_SETTINGS_PAT` (← `pat`) |
+| `idp`                 | IdP Transition | `BEABEE_IDP_PROVIDER=zitadel`, `BEABEE_IDP_SETTINGS_URL` (← `ISSUER`), `BEABEE_IDP_SETTINGS_PAT` (← `pat`), `BEABEE_IDP_SETTINGS_APIURL` (← `zitadel.internalApi`) |
 | `oidc`                | OIDC           | the above + `BEABEE_LOGIN_PROVIDER=oidc`, `BEABEE_LOGIN_SETTINGS_ISSUER` (← `ISSUER`), `_CLIENTID` (← `CLIENT_ID`) |
 
 Move one step at a time, **one deploy each**, in this order:
