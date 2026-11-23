@@ -103,8 +103,7 @@ chart declares, controllers converge).
   ~15 min).
 - once `zitadel.state` is `idp` or `oidc`, a second post-hook Job runs
   `backend-cli setup integrations idp` with the app's env after every
-  deploy, which applies the IdP-side settings the app owns (monorepo
-  `docs/oidc-login.md`).
+  deploy, which applies the IdP-side settings the app owns.
 - the bootstrap Job also ensures a **human admin user** (username `admin`,
   `IAM_OWNER` on the instance, email `zitadel.adminEmail`, default
   `admin@<login-domain>`, created as verified so no mail is sent) and
@@ -127,7 +126,8 @@ management, and the setup Job writes instance-level settings with it.
 
 ### Handing the credentials to the app: `zitadel.state`
 
-The app has two independent switches (monorepo `docs/oidc-login.md`):
+The app has two independent switches (see the monorepo's
+[OIDC login docs](https://github.com/beabee-communityrm/monorepo/tree/main/docs/oidc-login)):
 `BEABEE_IDP_PROVIDER` selects the identity provider it manages accounts in,
 `BEABEE_LOGIN_PROVIDER` selects how people log in. Together they put a
 tenant in exactly one of three states. The chart renders the matching env
