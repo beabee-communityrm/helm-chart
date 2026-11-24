@@ -32,18 +32,45 @@ spec:
   rules:
     - host: {{ include "beabee.zitadelLoginDomain" . | quote }}
       http:
+        # Only what browsers and OIDC clients need. The management APIs,
+        # the Console and the core's debug endpoints stay off the public
+        # host: the app reaches the API in-cluster (zitadel.internalApi),
+        # and every other path redirects to the app (next Ingress).
+        # Service names/ports are those of the shared ZITADEL namespace.
         paths:
-          # OIDC endpoints (discovery, authorize, token) served by the
-          # ZITADEL API; the hosted login UI lives under /ui/v2/login, behind
-          # the proxy that injects beabee's stylesheet (monorepo ADR-0006).
-          # Service names/ports are those of the shared ZITADEL namespace.
-          - path: /
+          # discovery, authorize, token, keys, introspection
+          - path: /oauth/v2
             pathType: Prefix
             backend:
               service:
                 name: zitadel
                 port:
                   number: 8080
+          # userinfo, end_session
+          - path: /oidc/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: zitadel
+                port:
+                  number: 8080
+          - path: /.well-known
+            pathType: Prefix
+            backend:
+              service:
+                name: zitadel
+                port:
+                  number: 8080
+          # branding assets (logo, icon, font) the login pages load
+          - path: /assets/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: zitadel
+                port:
+                  number: 8080
+          # the hosted login UI, behind the proxy that injects beabee's
+          # stylesheet (monorepo ADR-0006)
           - path: /ui/v2/login
             pathType: Prefix
             backend:
@@ -55,4 +82,36 @@ spec:
     - hosts:
         - {{ include "beabee.zitadelLoginDomain" . | quote }}
       secretName: zitadel-login-{{ include "beabee.fullname" . }}-tls
+---
+# Every other path on the login domain redirects to the app, among them the
+# root and the Console, where ZITADEL would otherwise send a browser that
+# arrives without an app context. A separate Ingress because the redirect
+# annotation applies to all of an Ingress's paths. Without the
+# zitadel-login-domain label, so the reconciler does not read it as a
+# declaration; TLS comes from the Ingress above.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zitadel-login-{{ include "beabee.fullname" . }}-redirect
+  namespace: {{ .Values.zitadel.namespace }}
+  labels:
+    {{- include "beabee.labels" . | nindent 4 }}
+    component: zitadel-login-redirect
+  annotations:
+    nginx.ingress.kubernetes.io/temporal-redirect: {{ printf "%s://%s/" (include "beabee.scheme" .) .Values.hive.domain | quote }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | default "nginx" }}
+  rules:
+    - host: {{ include "beabee.zitadelLoginDomain" . | quote }}
+      http:
+        paths:
+          # The backend is required but never reached: nginx answers the
+          # redirect itself.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zitadel
+                port:
+                  number: 8080
 {{- end }}
